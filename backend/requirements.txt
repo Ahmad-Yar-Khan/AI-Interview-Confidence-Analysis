@@ -1,0 +1,27 @@
+# Smart Interview — Backend Dependencies
+# Tested on Python 3.11.x
+# Install: pip install -r requirements.txt
+
+# API
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+
+# Resume parsing
+pypdf
+python-docx
+pdfplumber
+
+# NLP & Embeddings
+spacy
+scikit-learn
+numpy
+
+# Vector search
+faiss-cpu
+
+# Utilities
+pandas
+python-dotenv
+aiofiles

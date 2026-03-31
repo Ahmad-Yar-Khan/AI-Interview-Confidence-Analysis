@@ -1,0 +1,183 @@
+/* ─── Design System ─────────────────────────────────────── */
+:root {
+  --bg: #090b10;
+  --surface: #0f1219;
+  --surface2: #161b26;
+  --surface3: #1c2333;
+  --border: #242c3e;
+  --border2: #2e3a52;
+
+  --accent: #4f8ef7;
+  --accent-dim: rgba(79, 142, 247, 0.12);
+  --accent2: #a78bfa;
+  --accent2-dim: rgba(167, 139, 250, 0.10);
+
+  --green: #34d399;
+  --green-dim: rgba(52, 211, 153, 0.10);
+  --yellow: #fbbf24;
+  --yellow-dim: rgba(251, 191, 36, 0.10);
+  --red: #f87171;
+  --red-dim: rgba(248, 113, 113, 0.10);
+  --pink: #f472b6;
+  --orange: #fb923c;
+
+  --text: #e4eaf8;
+  --text2: #9aa5c0;
+  --muted: #5c6a88;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-serif: 'DM Serif Display', Georgia, serif;
+  --font-mono: 'DM Mono', 'Fira Code', monospace;
+
+  --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* ─── Reset ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ─── Typography ─────────────────────────────────────────── */
+h1, h2, h3, h4 { font-family: var(--font-serif); font-weight: 400; line-height: 1.2; }
+code { font-family: var(--font-mono); font-size: 0.88em; }
+
+/* ─── Utility classes ────────────────────────────────────── */
+.fade-in { animation: fadeIn 0.4s ease forwards; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up { animation: slideUp 0.35s ease forwards; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Spinner ────────────────────────────────────────────── */
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.dot-pulse { display: inline-flex; gap: 5px; align-items: center; }
+.dot-pulse span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  animation: dotPulse 1.3s ease-in-out infinite;
+}
+.dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
+.dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.75); }
+  40%           { opacity: 1;   transform: scale(1); }
+}
+
+/* ─── Buttons ────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 22px;
+  border-radius: var(--radius-sm);
+  border: none; cursor: pointer;
+  font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600;
+  transition: all 0.18s;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.42; cursor: not-allowed; pointer-events: none; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #3b7de8; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,142,247,0.35); }
+
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+.btn-ghost:hover { color: var(--text); border-color: var(--text2); }
+
+.btn-green { background: var(--green); color: #000; font-weight: 700; }
+.btn-green:hover { background: #2bbd87; transform: translateY(-1px); }
+
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.btn-danger:hover { background: rgba(248,113,113,0.2); }
+
+/* ─── Card ───────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+}
+
+/* ─── Chip ───────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-mono); font-size: 0.7rem;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border2);
+  white-space: nowrap;
+}
+
+/* ─── Progress bar ───────────────────────────────────────── */
+.progress-track {
+  height: 5px; background: var(--border); border-radius: var(--radius-pill); overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: var(--radius-pill);
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ─── Difficulty badges ──────────────────────────────────── */
+.diff-badge {
+  font-family: var(--font-mono); font-size: 0.68rem;
+  padding: 2px 9px; border-radius: var(--radius-pill);
+}
+.diff-Easy   { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(52,211,153,0.25); }
+.diff-Medium { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
+.diff-Hard   { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(248,113,113,0.25); }
+
+/* ─── Textarea ───────────────────────────────────────────── */
+textarea, input[type="text"] {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  color: var(--text);
+  font-family: var(--font-sans); font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
+}
+textarea:focus, input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,142,247,0.12);
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 680px) {
+  .card { padding: 20px; }
+  .btn  { padding: 9px 16px; }
+}

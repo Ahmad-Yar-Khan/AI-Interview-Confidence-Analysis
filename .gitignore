@@ -1,0 +1,19 @@
+# --- Backend / Python ---
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/faiss_index/
+# Ignore data files if they are large or private
+backend/data/full_interview_questions_dataset.csv
+backend/data/new_interview_questions.csv
+backend/data/*.json
+
+# --- Frontend / React ---
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# --- General ---
+.DS_Store
+*.log
