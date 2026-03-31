@@ -1,100 +1,89 @@
-# Smart Interview — Full Stack App
 
-AI-powered interview prep that parses any resume, selects tailored questions from a Kaggle dataset using TF-IDF vector embeddings + FAISS similarity search, records answers, and scores them across multiple semantic angles.
+# 🤖 SmartInterview: AI-Driven Recruitment & Evaluation Pipeline
+
+**SmartInterview** is a sophisticated Full-Stack RAG (Retrieval-Augmented Generation) application designed to automate the technical interview process. By leveraging **TF-IDF vector embeddings** and **FAISS similarity search**, the system parses resumes and dynamically retrieves the most relevant technical questions from a Kaggle-sourced dataset, providing a personalized and mathematically-grounded evaluation of a candidate's performance.
 
 ---
 
-## Project Structure
+## 🚀 Core Technical Features
 
-```
+### 1. Intelligence Engine (The RAG Pipeline)
+* **Resume Parsing:** Uses **spaCy NER** and RegEx to extract high-fidelity entities (Skills, Projects, Experience) from PDF/DOCX.
+* **Vector Space Indexing:** Implements **TF-IDF Vectorization** to transform raw text into numerical features.
+* **Efficient Retrieval:** Utilizes **FAISS (Facebook AI Similarity Search)** to perform high-speed K-Nearest Neighbor searches, matching candidate profiles to specific question clusters.
+
+### 2. Multi-Angle Evaluation (The Scorer)
+The `scorer.py` module doesn't just check for keywords; it computes a **Cosine Similarity** score across three distinct semantic dimensions:
+* **Conceptual:** Accuracy of the core principles mentioned.
+* **Technical:** Presence of domain-specific terminology and syntax.
+* **Completeness:** The breadth of the answer relative to the model solution.
+
+### 3. Speech & Confidence Analytics (Future-Ready)
+* Integrates signal processing hooks to evaluate **Speech Features** (fluency, pitch, and rate) to determine a candidate's **Confidence Score**.
+
+---
+
+## 📂 Project Architecture
+
+```text
 smart-interview/
-├── backend/
-│   ├── main.py                  # FastAPI entry point
-│   ├── resume_parser.py         # PDF/DOCX resume parser
-│   ├── embedding_engine.py      # TF-IDF vectorizer + FAISS index
-│   ├── question_selector.py     # Resume-aware question ranking
-│   ├── scorer.py                # Multi-angle answer scoring
-│   ├── data_loader.py           # Kaggle CSV loader + preprocessor
-│   ├── requirements.txt
-│   └── data/
-│       └── new_interview_questions.csv   ← place Kaggle CSV here
-│
-├── frontend/
-│   ├── public/
-│   │   └── index.html
+├── backend/                # FastAPI Microservice
+│   ├── main.py             # Entry point & API Routing
+│   ├── resume_parser.py    # spaCy-based extraction engine
+│   ├── embedding_engine.py # TF-IDF + FAISS Indexing
+│   ├── scorer.py           # Triple-angle semantic scoring
+│   └── data/               # Kaggle Dataset Storage
+├── frontend/               # React + Vite Application
 │   ├── src/
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   ├── index.css
-│   │   ├── components/
-│   │   │   ├── UploadScreen.jsx
-│   │   │   ├── ProfileStrip.jsx
-│   │   │   ├── InterviewScreen.jsx
-│   │   │   ├── ScoreBlock.jsx
-│   │   │   └── ReportScreen.jsx
-│   │   ├── utils/
-│   │   │   └── api.js           # Axios calls to backend
-│   │   └── hooks/
-│   │       └── useInterview.js  # Global state hook
-│   └── package.json
-│
+│   │   ├── components/     # Atomic UI components (Upload, Interview, Report)
+│   │   ├── hooks/          # Custom state management (useInterview)
+│   │   └── utils/          # Axios-based API abstraction
 └── README.md
 ```
 
 ---
 
-## Quick Start
+## 🛠️ Tech Stack
 
-### 1. Place the dataset
-```
-backend/data/new_interview_questions.csv
-```
+* **Frontend:** React (Vite), Tailwind CSS, Axios.
+* **Backend:** FastAPI (Python 3.9+).
+* **NLP/AI:** spaCy, Scikit-learn (TF-IDF), FAISS, Google Gemini (Optional for feedback).
+* **Data:** Kaggle Interview Question Dataset.
 
-### 2. Backend (Python 3.9+)
+---
+
+## ⚙️ Quick Start Guide
+
+### 1. Prerequisites & Data
+Place your Kaggle dataset (`new_interview_questions.csv`) in `backend/data/`.
+
+### 2. Backend Setup
 ```bash
 cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-### 3. Frontend (Node 18+)
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-Open http://localhost:5173
-
----
-
-## How It Works
-
-1. **Upload** — User uploads PDF or DOCX resume
-2. **Parse** — `resume_parser.py` extracts name, title, skills, experience, projects using regex + spaCy NER
-3. **Embed** — `embedding_engine.py` builds TF-IDF vectors for resume text + all questions; indexes into FAISS
-4. **Select** — `question_selector.py` runs cosine similarity between resume vector and question vectors, ranks by category weight + difficulty
-5. **Answer** — User types answers in the React UI
-6. **Score** — `scorer.py` embeds user answer + model answer, computes similarity across 3 angles (conceptual, technical, completeness)
-7. **Report** — Per-question scores + overall report with category breakdown
+Visit `http://localhost:5173` to start.
 
 ---
 
-## API Endpoints
+## 📡 API Documentation
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/parse-resume` | Upload PDF/DOCX → returns parsed profile |
-| GET | `/api/questions/{session_id}` | Get tailored question list |
-| POST | `/api/score` | Score a single answer |
-| GET | `/api/report/{session_id}` | Full session report |
+| :--- | :--- | :--- |
+| **POST** | `/api/parse-resume` | Extracts profile from PDF/DOCX |
+| **GET** | `/api/questions/{id}` | Retrieves FAISS-ranked questions |
+| **POST** | `/api/score` | Semantic & Acoustic answer evaluation |
+| **GET** | `/api/report/{id}` | Full session analytics & breakdown |
 
 ---
 
-## Environment Variables (optional)
-```env
-# backend/.env
-CORS_ORIGINS=http://localhost:5173
-MAX_QUESTIONS=12
-DATA_PATH=data/new_interview_questions.csv
-```
