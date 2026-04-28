@@ -19,6 +19,8 @@ Routes:
 import os
 import uuid
 import logging
+import tempfile
+import shutil
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -30,6 +32,13 @@ from embedding_engine import EmbeddingEngine
 from data_loader import init_question_bank, get_question_bank, CATEGORIES
 from question_selector import select_questions
 from scorer import score_answer
+
+try:
+    from feature_extractor import predict_confidence_for_audio_vscode
+    _confidence_available = True
+except Exception as _ce:
+    _confidence_available = False
+    logging.getLogger(__name__).warning(f"feature_extractor not available: {_ce}")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -298,7 +307,36 @@ def delete_session(session_id: str):
     return {"deleted": session_id}
 
 
-# ── 6. Available Categories ──────────────────────────────────
+# ── 6. Confidence Analysis ───────────────────────────────────
+
+@app.post("/api/confidence")
+async def analyze_confidence(audio: UploadFile = File(...)):
+    """
+    Upload an audio file (webm/wav/mp3/m4a).
+    Returns predicted_label, confidence_probability, confidence_score_1_to_10.
+    Requires CONFIDENCE_MODEL_PATH and CONFIDENCE_FEATURES_PATH env vars
+    pointing to the trained joblib files.
+    """
+    if not _confidence_available:
+        raise HTTPException(503, "Confidence analysis module failed to load. Check server logs.")
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        ext = os.path.splitext(audio.filename or "recording.webm")[-1] or ".webm"
+        tmp_path = os.path.join(tmp_dir, f"audio{ext}")
+        contents = await audio.read()
+        with open(tmp_path, "wb") as f:
+            f.write(contents)
+
+        result = predict_confidence_for_audio_vscode(tmp_path)
+        if not result:
+            raise HTTPException(500, "Prediction failed. Check that model files exist and audio is valid.")
+        return result
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+# ── 7. Available Categories ──────────────────────────────────
 
 @app.get("/api/categories")
 def get_categories():

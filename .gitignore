@@ -8,6 +8,8 @@ backend/data/full_interview_questions_dataset.csv
 backend/data/new_interview_questions.csv
 backend/data/*.json
 
+.claude
+
 # --- Frontend / React ---
 frontend/node_modules/
 frontend/dist/

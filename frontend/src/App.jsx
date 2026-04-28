@@ -5,14 +5,15 @@
  * Flow: upload → ready → interview → report
  */
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useInterview } from './hooks/useInterview'
 
-import UploadScreen    from './components/UploadScreen'
-import ProfileStrip    from './components/ProfileStrip'
-import ReadyScreen     from './components/ReadyScreen'
-import InterviewScreen from './components/InterviewScreen'
-import ReportScreen    from './components/ReportScreen'
+import UploadScreen        from './components/UploadScreen'
+import ProfileStrip        from './components/ProfileStrip'
+import ReadyScreen         from './components/ReadyScreen'
+import InterviewScreen     from './components/InterviewScreen'
+import ReportScreen        from './components/ReportScreen'
+import ConfidenceTestPage  from './components/ConfidenceTestPage'
 
 // ── Step indicator ────────────────────────────────────────
 
@@ -80,7 +81,7 @@ function StepIndicator({ currentStep }) {
 
 // ── Top bar ───────────────────────────────────────────────
 
-function TopBar() {
+function TopBar({ onToggleConfidence, confidenceActive }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -92,15 +93,32 @@ function TopBar() {
       <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', letterSpacing: '-0.02em' }}>
         Smart<span style={{ color: 'var(--accent)' }}>Interview</span>
       </div>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: '0.68rem',
-        color: 'var(--accent2)',
-        background: 'rgba(167,139,250,0.10)',
-        border: '1px solid rgba(167,139,250,0.22)',
-        borderRadius: 'var(--radius-pill)',
-        padding: '3px 12px',
-      }}>
-        AI-Powered · 11 Categories · FAISS Vector Search
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={onToggleConfidence}
+          style={{
+            fontFamily: 'var(--font-mono)', fontSize: '0.68rem',
+            color: confidenceActive ? 'var(--green)' : 'var(--muted)',
+            background: confidenceActive ? 'var(--green-dim)' : 'transparent',
+            border: `1px solid ${confidenceActive ? 'rgba(52,211,153,0.3)' : 'var(--border2)'}`,
+            borderRadius: 'var(--radius-pill)',
+            padding: '3px 12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          Confidence Test
+        </button>
+        <div style={{
+          fontFamily: 'var(--font-mono)', fontSize: '0.68rem',
+          color: 'var(--accent2)',
+          background: 'rgba(167,139,250,0.10)',
+          border: '1px solid rgba(167,139,250,0.22)',
+          borderRadius: 'var(--radius-pill)',
+          padding: '3px 12px',
+        }}>
+          AI-Powered · 11 Categories · FAISS Vector Search
+        </div>
       </div>
     </div>
   )
@@ -110,6 +128,30 @@ function TopBar() {
 
 export default function App() {
   const interview = useInterview()
+  const [showConfidence, setShowConfidence] = useState(
+    () => window.location.hash === '#confidence-test'
+  )
+
+  useEffect(() => {
+    const handler = () => setShowConfidence(window.location.hash === '#confidence-test')
+    window.addEventListener('hashchange', handler)
+    return () => window.removeEventListener('hashchange', handler)
+  }, [])
+
+  const toggleConfidence = () => {
+    const next = !showConfidence
+    window.location.hash = next ? '#confidence-test' : ''
+    setShowConfidence(next)
+  }
+
+  if (showConfidence) {
+    return (
+      <div style={{ minHeight: '100vh' }}>
+        <TopBar onToggleConfidence={toggleConfidence} confidenceActive />
+        <ConfidenceTestPage />
+      </div>
+    )
+  }
 
   const {
     step, loading, error,
@@ -129,7 +171,7 @@ export default function App() {
   if (step === 'upload') {
     return (
       <div style={{ minHeight: '100vh' }}>
-        <TopBar />
+        <TopBar onToggleConfidence={toggleConfidence} confidenceActive={false} />
         <UploadScreen
           onUpload={handleUpload}
           loading={loading}
@@ -141,7 +183,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <TopBar />
+      <TopBar onToggleConfidence={toggleConfidence} confidenceActive={false} />
       <StepIndicator currentStep={step} />
       <ProfileStrip profile={profile} onReset={reset} />
 
