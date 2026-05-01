@@ -158,6 +158,7 @@ export default function App() {
     profile, questions,
     currentIndex, currentQuestion, currentAnswer,
     answeredCount, allAnswered, progress,
+    confidenceScores,
     report,
     handleUpload,
     startInterview,
@@ -218,6 +219,7 @@ export default function App() {
         {step === 'report' && (
           <ReportScreen
             report={report}
+            confidenceScores={confidenceScores}
             onRetake={retake}
             onReset={reset}
           />

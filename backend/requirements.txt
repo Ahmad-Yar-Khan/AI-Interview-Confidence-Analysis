@@ -1,5 +1,4 @@
 # Smart Interview — Backend Dependencies
-# Tested on Python 3.11.x
 # Install: pip install -r requirements.txt
 
 # API
@@ -8,20 +7,24 @@ uvicorn[standard]
 python-multipart
 pydantic
 
-# Resume parsing
+# Resume text extraction
 pypdf
 python-docx
 pdfplumber
 
-# NLP & Embeddings
-spacy
-scikit-learn
-numpy
+# Gemini
+google-generativeai
 
-# Vector search
-faiss-cpu
+# Confidence analysis
+whisper
+openai-whisper
+pydub
+scikit-learn==1.6.1
+numpy
+pandas
+joblib
+xgboost
 
 # Utilities
-pandas
 python-dotenv
 aiofiles

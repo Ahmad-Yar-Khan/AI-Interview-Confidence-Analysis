@@ -9,7 +9,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 60000,
 })
 
 // ── Error helper ─────────────────────────────────────────
@@ -29,7 +29,7 @@ export async function uploadResume(file) {
   const form = new FormData()
   form.append('file', file)
   try {
-    const { data } = await api.post('/parse-resume', form, {
+    const { data } = await api.post('/upload-resume', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return data
@@ -96,5 +96,25 @@ export async function deleteSession(sessionId) {
     await api.delete(`/session/${sessionId}`)
   } catch (_) {
     // best-effort
+  }
+}
+
+// ── 6. Confidence analysis from audio ─────────────────────
+/**
+ * @param {Blob} audioBlob  Audio recorded by MediaRecorder
+ * @returns {{ predicted_label, confidence_probability, confidence_score_1_to_10 }}
+ */
+export async function submitConfidence(audioBlob) {
+  try {
+    const ext  = (audioBlob.type || '').includes('mp4') ? 'mp4' : 'webm'
+    const form = new FormData()
+    form.append('audio', audioBlob, `recording.${ext}`)
+    const { data } = await api.post('/confidence', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    })
+    return data
+  } catch (err) {
+    throw new Error(extractError(err))
   }
 }

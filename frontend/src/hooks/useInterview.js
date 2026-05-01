@@ -8,19 +8,22 @@
 import { useState, useCallback } from 'react'
 import {
   uploadResume, fetchQuestions, scoreAnswer, fetchReport, deleteSession,
+  submitConfidence as submitConfidenceApi,
 } from '../utils/api'
 
 export function useInterview() {
-  const [step,         setStep]         = useState('upload')
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState(null)
-  const [sessionId,    setSessionId]    = useState(null)
-  const [profile,      setProfile]      = useState(null)
-  const [questions,    setQuestions]    = useState([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  // answers: { [questionId]: { userAnswer, modelAnswer, overall, is_behavioral, angles } }
-  const [answers,      setAnswers]      = useState({})
-  const [report,       setReport]       = useState(null)
+  const [step,             setStep]             = useState('upload')
+  const [loading,          setLoading]          = useState(false)
+  const [error,            setError]            = useState(null)
+  const [sessionId,        setSessionId]        = useState(null)
+  const [profile,          setProfile]          = useState(null)
+  const [questions,        setQuestions]        = useState([])
+  const [currentIndex,     setCurrentIndex]     = useState(0)
+  // answers: { [questionId]: { userAnswer, modelAnswer, overall, is_behavioral, angles, replayCount } }
+  const [answers,          setAnswers]          = useState({})
+  // confidenceScores: { [questionId]: { status, label, probability, score } }
+  const [confidenceScores, setConfidenceScores] = useState({})
+  const [report,           setReport]           = useState(null)
 
   const clearError = () => setError(null)
 
@@ -55,7 +58,7 @@ export function useInterview() {
   }, [])
 
   // ── 3. Submit Answer ─────────────────────────────────────
-  const submitAnswer = useCallback(async (userAnswer) => {
+  const submitAnswer = useCallback(async (userAnswer, replayCount = 0, audioBlob = null) => {
     const q = questions[currentIndex]
     if (!q || !sessionId) return
     setLoading(true); setError(null)
@@ -78,8 +81,36 @@ export function useInterview() {
           overall:       result.overall,
           is_behavioral: result.is_behavioral,
           angles:        result.angles,
+          replayCount,
         },
       }))
+
+      // Fire confidence analysis in background (non-blocking)
+      if (audioBlob) {
+        const qid = q.id
+        setConfidenceScores(prev => ({
+          ...prev,
+          [qid]: { status: 'pending', label: null, probability: null, score: null },
+        }))
+        submitConfidenceApi(audioBlob)
+          .then(r => {
+            setConfidenceScores(prev => ({
+              ...prev,
+              [qid]: {
+                status:      'done',
+                label:       r.predicted_label,
+                probability: r.confidence_probability,
+                score:       r.confidence_score_1_to_10,
+              },
+            }))
+          })
+          .catch(() => {
+            setConfidenceScores(prev => ({
+              ...prev,
+              [qid]: { status: 'failed', label: null, probability: null, score: null },
+            }))
+          })
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -115,12 +146,12 @@ export function useInterview() {
     if (sessionId) await deleteSession(sessionId)
     setStep('upload'); setSessionId(null); setProfile(null)
     setQuestions([]); setCurrentIndex(0); setAnswers({})
-    setReport(null); setError(null)
+    setConfidenceScores({}); setReport(null); setError(null)
   }, [sessionId])
 
   // ── 7. Retake ─────────────────────────────────────────────
   const retake = useCallback(() => {
-    setAnswers({}); setCurrentIndex(0); setReport(null); setStep('interview')
+    setAnswers({}); setConfidenceScores({}); setCurrentIndex(0); setReport(null); setStep('interview')
   }, [])
 
   // ── Derived ───────────────────────────────────────────────
@@ -135,6 +166,7 @@ export function useInterview() {
     sessionId, profile, questions,
     currentIndex, currentQuestion, currentAnswer,
     answers, answeredCount, allAnswered, progress,
+    confidenceScores,
     report,
     handleUpload, startInterview, submitAnswer,
     goNext, goPrev,

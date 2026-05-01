@@ -1,15 +1,6 @@
-/**
- * InterviewScreen.jsx
- * -------------------
- * Main interview UI: question card, textarea, score display, navigation.
- * Handles both technical (has model answer) and HR/behavioral (open-ended) questions.
- */
-
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import ScoreBlock from './ScoreBlock'
 import { CAT_META } from './ProfileStrip'
-
-const MIN_CHARS = 20  // minimum before submit enabled
 
 export default function InterviewScreen({
   questions,
@@ -27,31 +18,212 @@ export default function InterviewScreen({
   onShowReport,
   onClearError,
 }) {
-  const [text, setText] = useState('')
+  // ttsPhase: idle | speaking | counting | recording | done
+  const [ttsPhase,     setTtsPhase]     = useState('idle')
+  const [countdown,    setCountdown]    = useState(5)
+  const [transcript,   setTranscript]   = useState('')
+  const [interimText,  setInterimText]  = useState('')
+  const [replayMap,    setReplayMap]    = useState({})   // { [qId]: count }
 
-  // Reset textarea when question changes
+  const seqRef          = useRef(0)
+  const recognitionRef  = useRef(null)
+  const countdownRef    = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef   = useRef([])
+  const audioBlobRef     = useRef(null)
+  const wantBlobRef      = useRef(false)  // true only when manually stopping to submit
+
+  const isAnswered  = !!currentAnswer
+  const questionId  = currentQuestion?.id
+  const replayCount = questionId ? (replayMap[questionId] || 0) : 0
+  const canReplay   = replayCount < 1
+
+  // ── Sequence control ──────────────────────────────────────
+
+  function stopSequence() {
+    wantBlobRef.current = false
+    seqRef.current += 1
+    try { window.speechSynthesis?.cancel() } catch (_) {}
+    clearInterval(countdownRef.current)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (_) {}
+      recognitionRef.current = null
+    }
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop() } catch (_) {}
+      }
+      mediaRecorderRef.current = null
+    }
+  }
+
+  function runRecording(seq) {
+    // Reset audio capture state for this session
+    audioBlobRef.current   = null
+    audioChunksRef.current = []
+
+    // ── SpeechRecognition for live transcript ─────────────
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SR) {
+      const rec = new SR()
+      rec.continuous     = true
+      rec.interimResults = true
+      rec.lang           = 'en-US'
+
+      let final = ''
+      rec.onresult = (e) => {
+        if (seqRef.current !== seq) return
+        let interim = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            final += e.results[i][0].transcript + ' '
+          } else {
+            interim += e.results[i][0].transcript
+          }
+        }
+        setTranscript(final)
+        setInterimText(interim)
+      }
+      rec.onerror = (e) => {
+        if (e.error !== 'aborted') console.warn('SR:', e.error)
+      }
+
+      recognitionRef.current = rec
+      rec.start()
+    }
+
+    // ── MediaRecorder for audio capture (confidence analysis) ─
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          if (seqRef.current !== seq) { stream.getTracks().forEach(t => t.stop()); return }
+          const mr = new MediaRecorder(stream)
+          mr.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunksRef.current.push(e.data)
+          }
+          mr.onstop = () => {
+            stream.getTracks().forEach(t => t.stop())
+            if (wantBlobRef.current) {
+              audioBlobRef.current = new Blob(
+                audioChunksRef.current,
+                { type: mr.mimeType || 'audio/webm' },
+              )
+              wantBlobRef.current = false
+            }
+          }
+          mediaRecorderRef.current = mr
+          mr.start()
+        })
+        .catch(err => console.warn('MediaRecorder failed to start:', err))
+    }
+
+    setTtsPhase('recording')
+  }
+
+  function runCountdown(seq) {
+    setTtsPhase('counting')
+    let c = 5
+    setCountdown(c)
+    countdownRef.current = setInterval(() => {
+      if (seqRef.current !== seq) { clearInterval(countdownRef.current); return }
+      c--
+      setCountdown(c)
+      if (c <= 0) {
+        clearInterval(countdownRef.current)
+        if (seqRef.current === seq) runRecording(seq)
+      }
+    }, 1000)
+  }
+
+  function runTTS(seq, text) {
+    setTtsPhase('speaking')
+    if (!window.speechSynthesis) { runCountdown(seq); return }
+    window.speechSynthesis.cancel()
+    const utter = new SpeechSynthesisUtterance(text)
+    utter.rate  = 0.9
+    utter.pitch = 1
+    utter.onend = () => {
+      if (seqRef.current === seq) runCountdown(seq)
+    }
+    window.speechSynthesis.speak(utter)
+  }
+
+  // ── Effects ───────────────────────────────────────────────
+
   useEffect(() => {
-    setText(currentAnswer?.userAnswer || '')
-  }, [currentIndex, currentAnswer])
+    stopSequence()
+    const seq = seqRef.current
+    audioBlobRef.current   = null
+    audioChunksRef.current = []
+
+    if (!currentQuestion || isAnswered) {
+      setTtsPhase('idle')
+      return
+    }
+
+    setTranscript('')
+    setInterimText('')
+    runTTS(seq, currentQuestion.question)
+  }, [currentIndex, isAnswered])  // eslint-disable-line
+
+  // Cleanup on unmount
+  useEffect(() => () => stopSequence(), [])  // eslint-disable-line
+
+  // ── Handlers ──────────────────────────────────────────────
+
+  const handleReplay = () => {
+    if (!canReplay || !currentQuestion) return
+    setReplayMap(prev => ({ ...prev, [questionId]: (prev[questionId] || 0) + 1 }))
+    stopSequence()
+    const seq = seqRef.current
+    setTranscript('')
+    setInterimText('')
+    runTTS(seq, currentQuestion.question)
+  }
+
+  const handleStopRecording = () => {
+    stopSequence()          // zeroes wantBlobRef, stops MR (async onstop pending)
+    wantBlobRef.current = true  // onstop fires after this sync block → sees true → saves blob
+    setInterimText('')
+    setTtsPhase('done')
+  }
+
+  const handleSubmit = () => {
+    if (!transcript.trim() || loading) return
+    onSubmit(transcript.trim(), replayCount, audioBlobRef.current)
+  }
+
+  // ── Derived render flags ──────────────────────────────────
 
   if (!currentQuestion) return null
 
-  const q            = currentQuestion
-  const isAnswered   = !!currentAnswer
-  const isHR         = !q.has_answer
-  const catMeta      = CAT_META[q.category] || { color: '#6b7794', label: q.category }
-  const canSubmit    = text.trim().length >= MIN_CHARS && !isAnswered && !loading
+  const q       = currentQuestion
+  const isHR    = !q.has_answer
+  const catMeta = CAT_META[q.category] || { color: '#6b7794', label: q.category }
 
-  const handleSubmit = () => {
-    if (canSubmit) onSubmit(text.trim())
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && e.ctrlKey) handleSubmit()
-  }
+  const isSpeaking  = ttsPhase === 'speaking'
+  const isCounting  = ttsPhase === 'counting'
+  const isRecording = ttsPhase === 'recording'
+  const isDone      = ttsPhase === 'done'
+  const showReplay  = (isSpeaking || isCounting) && canReplay && !isAnswered
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '28px 24px' }}>
+
+      <style>{`
+        @keyframes si-wave {
+          0%, 100% { transform: scaleY(0.35); }
+          50%       { transform: scaleY(1); }
+        }
+        @keyframes si-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%       { opacity: 0.4; transform: scale(1.4); }
+        }
+        @keyframes si-pop {
+          from { transform: scale(1.25); opacity: 0.4; }
+          to   { transform: scale(1);    opacity: 1; }
+        }
+      `}</style>
 
       {/* Progress bar */}
       <div style={{ marginBottom: 28 }}>
@@ -66,24 +238,14 @@ export default function InterviewScreen({
         <div className="progress-track">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
-
-        {/* Question dot nav */}
         <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
-          {questions.map((_, i) => {
-            const isActive   = i === currentIndex
-            const isDone     = !!currentAnswer && i === currentIndex
-            const answered   = i < questions.length  // placeholder
-            const dotAnswered = !!questions[i]?._answered
-            return (
-              <div key={i} title={`Q${i + 1}`} style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: isActive
-                  ? 'var(--accent)'
-                  : 'var(--border2)',
-                transition: 'background 0.2s',
-              }} />
-            )
-          })}
+          {questions.map((_, i) => (
+            <div key={i} title={`Q${i + 1}`} style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: i === currentIndex ? 'var(--accent)' : 'var(--border2)',
+              transition: 'background 0.2s',
+            }} />
+          ))}
         </div>
       </div>
 
@@ -95,8 +257,6 @@ export default function InterviewScreen({
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--muted)' }}>
             Q{String(currentIndex + 1).padStart(2, '0')}
           </span>
-
-          {/* Category badge */}
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: '0.68rem',
             padding: '2px 10px', borderRadius: 'var(--radius-pill)',
@@ -106,11 +266,7 @@ export default function InterviewScreen({
           }}>
             {catMeta.label}
           </span>
-
-          {/* Difficulty */}
           <span className={`diff-badge diff-${q.difficulty}`}>{q.difficulty}</span>
-
-          {/* Open-ended badge for HR */}
           {isHR && (
             <span style={{
               fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
@@ -150,45 +306,163 @@ export default function InterviewScreen({
           <div style={{
             background: 'rgba(148,163,184,0.06)',
             border: '1px solid rgba(148,163,184,0.15)',
-            borderRadius: 8, padding: '10px 14px', marginBottom: 14,
+            borderRadius: 8, padding: '10px 14px', marginBottom: 16,
             fontSize: '0.8rem', color: 'var(--text2)', lineHeight: 1.55,
           }}>
             <strong style={{ color: 'var(--text)' }}>Behavioral question —</strong> use the{' '}
-            <strong style={{ color: 'var(--text)' }}>STAR method</strong>:
-            describe the <em>Situation</em>, your <em>Task</em>, the <em>Action</em> you took,
-            and the <em>Result</em> achieved. Aim for 100–200 words.
+            <strong style={{ color: 'var(--text)' }}>STAR method</strong>: describe the{' '}
+            <em>Situation</em>, your <em>Task</em>, the <em>Action</em> you took, and the{' '}
+            <em>Result</em> achieved. Aim for 100–200 words.
           </div>
         )}
 
-        {/* Answer textarea */}
-        {!isAnswered ? (
-          <>
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isHR
-                  ? 'Describe the situation, your actions, and the outcome…'
-                  : 'Type your answer here… (Ctrl+Enter to submit)'
-              }
-              style={{ minHeight: 130 }}
-              disabled={loading}
-              autoFocus
-            />
-            <div style={{
-              display: 'flex', justifyContent: 'space-between',
-              alignItems: 'center', marginTop: 6,
-            }}>
-              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                {text.length} chars
-                {text.length < MIN_CHARS && ` — ${MIN_CHARS - text.length} more to enable submit`}
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>Ctrl+Enter to submit</span>
-            </div>
-          </>
-        ) : (
-          /* Already answered — show user's text read-only */
+        {/* ── Voice interface (unanswered) ── */}
+        {!isAnswered && (
+          <div>
+
+            {/* Speaking phase */}
+            {isSpeaking && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '32px 0 24px', gap: 14,
+              }}>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', height: 40 }}>
+                  {[0.35, 0.6, 1, 0.75, 0.45, 0.85, 0.55, 0.9, 0.4, 0.65].map((h, i) => (
+                    <div key={i} style={{
+                      width: 4, borderRadius: 2,
+                      background: 'var(--accent)',
+                      height: `${h * 100}%`,
+                      animation: `si-wave ${0.7 + i * 0.06}s ease-in-out infinite`,
+                      animationDelay: `${i * 0.07}s`,
+                    }} />
+                  ))}
+                </div>
+                <span style={{ fontSize: '0.84rem', color: 'var(--text2)' }}>
+                  Reading question aloud…
+                </span>
+                {showReplay && (
+                  <button className="btn btn-ghost" onClick={handleReplay}
+                    style={{ fontSize: '0.78rem', marginTop: 4 }}>
+                    ↺ Replay Question
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Counting phase */}
+            {isCounting && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '28px 0 20px', gap: 12,
+              }}>
+                <div key={countdown} style={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  border: '2px solid var(--accent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '2rem', fontWeight: 700, color: 'var(--accent)',
+                  animation: 'si-pop 0.25s ease-out forwards',
+                }}>
+                  {countdown}
+                </div>
+                <span style={{ fontSize: '0.84rem', color: 'var(--text2)' }}>
+                  Recording starts in {countdown}s — prepare your answer
+                </span>
+                {showReplay && (
+                  <button className="btn btn-ghost" onClick={handleReplay}
+                    style={{ fontSize: '0.78rem' }}>
+                    ↺ Replay Question
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Recording phase */}
+            {isRecording && (
+              <div style={{ marginTop: 4 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                }}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: '#f87171',
+                    animation: 'si-pulse 1.1s ease-in-out infinite',
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: '0.82rem', color: '#f87171', fontWeight: 500 }}>
+                    Recording
+                  </span>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>
+                    — speak your answer clearly
+                  </span>
+                </div>
+
+                <div style={{
+                  minHeight: 110,
+                  background: 'var(--surface2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '12px 14px',
+                  fontSize: '0.88rem', lineHeight: 1.65,
+                  color: 'var(--text)',
+                }}>
+                  {(transcript || interimText) ? (
+                    <>
+                      <span>{transcript}</span>
+                      <span style={{ color: 'var(--muted)' }}>{interimText}</span>
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--muted)' }}>Listening… start speaking</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                  <button
+                    onClick={handleStopRecording}
+                    style={{
+                      padding: '7px 18px', borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(248,113,113,0.10)',
+                      border: '1px solid rgba(248,113,113,0.3)',
+                      color: '#f87171', cursor: 'pointer',
+                      fontSize: '0.82rem', fontWeight: 500,
+                    }}
+                  >
+                    ■ Stop Recording
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Done phase — review & submit */}
+            {isDone && (
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text2)', marginBottom: 6 }}>
+                  Your answer
+                </div>
+                <div style={{
+                  background: 'var(--surface2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '12px 14px',
+                  fontSize: '0.88rem', lineHeight: 1.65,
+                  color: transcript.trim() ? 'var(--text)' : 'var(--muted)',
+                  whiteSpace: 'pre-wrap',
+                  minHeight: 60,
+                }}>
+                  {transcript.trim() || 'No speech detected — please try again.'}
+                </div>
+                {!(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+                  <p style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: 6 }}>
+                    Speech recognition not supported. Use Chrome for voice input.
+                  </p>
+                )}
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* Already answered — read-only */}
+        {isAnswered && (
           <div style={{
             background: 'var(--surface2)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius-sm)', padding: '14px 16px',
@@ -216,13 +490,13 @@ export default function InterviewScreen({
           </div>
         )}
 
-        {/* Score block (appears after submission) */}
+        {/* Score block */}
         {isAnswered && (
           <ScoreBlock answerData={{
-            overall:      currentAnswer.overall,
+            overall:       currentAnswer.overall,
             is_behavioral: currentAnswer.is_behavioral,
-            angles:       currentAnswer.angles,
-            modelAnswer:  currentAnswer.modelAnswer,
+            angles:        currentAnswer.angles,
+            modelAnswer:   currentAnswer.modelAnswer,
           }} />
         )}
 
@@ -246,11 +520,11 @@ export default function InterviewScreen({
           </button>
 
           <div style={{ display: 'flex', gap: 10 }}>
-            {!isAnswered && (
+            {isDone && !isAnswered && (
               <button
                 className="btn btn-primary"
                 onClick={handleSubmit}
-                disabled={!canSubmit}
+                disabled={!transcript.trim() || loading}
               >
                 {loading ? 'Scoring…' : 'Submit Answer'}
               </button>
@@ -275,6 +549,7 @@ export default function InterviewScreen({
             )}
           </div>
         </div>
+
       </div>
     </div>
   )

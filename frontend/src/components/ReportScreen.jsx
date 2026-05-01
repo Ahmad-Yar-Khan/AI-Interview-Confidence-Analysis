@@ -76,7 +76,7 @@ function CategoryRow({ name, data }) {
   )
 }
 
-export default function ReportScreen({ report, onRetake, onReset }) {
+export default function ReportScreen({ report, confidenceScores = {}, onRetake, onReset }) {
   const [expandedIdx, setExpandedIdx] = useState(null)
 
   if (!report) return null
@@ -98,6 +98,13 @@ export default function ReportScreen({ report, onRetake, onReset }) {
     : null
 
   const behavAnswers = answers.filter(a => a.score.is_behavioral)
+
+  // Confidence score aggregates
+  const doneConfidences = Object.values(confidenceScores).filter(c => c.status === 'done')
+  const pendingCount    = Object.values(confidenceScores).filter(c => c.status === 'pending').length
+  const avgConfidence   = doneConfidences.length > 0
+    ? doneConfidences.reduce((s, c) => s + c.score, 0) / doneConfidences.length
+    : null
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '28px 24px' }}>
@@ -150,10 +157,25 @@ export default function ReportScreen({ report, onRetake, onReset }) {
       </div>
 
       {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 }}>
         <StatCard value={best_score}    label="Best Score"    color="var(--green)" />
-        <StatCard value={average_score} label="Average Score" color={color} />
+        <StatCard value={average_score} label="Avg Score"     color={color} />
         <StatCard value={worst_score}   label="Lowest Score"  color="var(--red)" />
+        <StatCard
+          value={
+            pendingCount > 0 && avgConfidence === null
+              ? '…'
+              : avgConfidence !== null
+                ? avgConfidence.toFixed(1) + '/10'
+                : '—'
+          }
+          label={pendingCount > 0 ? `Avg Confidence (${pendingCount} analyzing)` : 'Avg Confidence'}
+          color={
+            avgConfidence === null
+              ? 'var(--muted)'
+              : getScoreColor(avgConfidence * 10)
+          }
+        />
       </div>
 
       {/* Category breakdown */}
@@ -195,6 +217,7 @@ export default function ReportScreen({ report, onRetake, onReset }) {
           const scColor   = getScoreColor(sc)
           const isOpen    = expandedIdx === i
           const isBehav   = a.score.is_behavioral
+          const conf      = confidenceScores[a.question_id]
 
           return (
             <div key={i} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -216,9 +239,23 @@ export default function ReportScreen({ report, onRetake, onReset }) {
                 </span>
                 <div>
                   <div style={{ fontSize: '0.83rem', lineHeight: 1.4 }}>{a.question}</div>
-                  <div style={{ fontSize: '0.67rem', color: catMeta.color, marginTop: 2 }}>
+                  <div style={{ fontSize: '0.67rem', color: catMeta.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     {a.category} · <span className={`diff-badge diff-${a.difficulty}`} style={{ fontSize: '0.62rem', padding: '1px 6px' }}>{a.difficulty}</span>
-                    {isBehav && <span style={{ color: 'var(--muted)', marginLeft: 4 }}>· Effort Score</span>}
+                    {isBehav && <span style={{ color: 'var(--muted)' }}>· Effort Score</span>}
+                    {conf?.status === 'done' && (
+                      <span style={{
+                        background: conf.label === 'Confident' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.10)',
+                        border: `1px solid ${conf.label === 'Confident' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                        color: conf.label === 'Confident' ? 'var(--green)' : 'var(--red)',
+                        borderRadius: 'var(--radius-pill)',
+                        padding: '1px 7px', fontSize: '0.62rem', fontFamily: 'var(--font-mono)',
+                      }}>
+                        {conf.score.toFixed(1)}/10 · {conf.label}
+                      </span>
+                    )}
+                    {conf?.status === 'pending' && (
+                      <span style={{ color: 'var(--muted)', fontSize: '0.62rem' }}>· analyzing…</span>
+                    )}
                   </div>
                 </div>
                 {/* Mini score bar */}
@@ -285,6 +322,63 @@ export default function ReportScreen({ report, onRetake, onReset }) {
                         )
                       })}
                     </div>
+
+                    {/* Confidence analysis */}
+                    {conf && (
+                      <div style={{
+                        marginTop: 14,
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 8, padding: '12px 14px',
+                      }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                          Voice Confidence Analysis
+                        </div>
+                        {conf.status === 'pending' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: 'var(--text2)' }}>
+                            <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                            Analyzing audio…
+                          </div>
+                        )}
+                        {conf.status === 'failed' && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Analysis unavailable</div>
+                        )}
+                        {conf.status === 'done' && (
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{
+                              background: 'var(--surface3)', borderRadius: 8,
+                              padding: '8px 14px', textAlign: 'center', minWidth: 80,
+                            }}>
+                              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', color: getScoreColor(conf.score * 10) }}>
+                                {conf.score.toFixed(1)}
+                              </div>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: 2 }}>Score /10</div>
+                            </div>
+                            <div style={{
+                              background: 'var(--surface3)', borderRadius: 8,
+                              padding: '8px 14px', textAlign: 'center', minWidth: 80,
+                            }}>
+                              <div style={{
+                                fontFamily: 'var(--font-mono)', fontSize: '1rem',
+                                color: conf.label === 'Confident' ? 'var(--green)' : 'var(--red)',
+                              }}>
+                                {conf.label === 'Confident' ? 'Yes' : 'No'}
+                              </div>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: 2 }}>Confident</div>
+                            </div>
+                            <div style={{
+                              background: 'var(--surface3)', borderRadius: 8,
+                              padding: '8px 14px', textAlign: 'center', minWidth: 80,
+                            }}>
+                              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', color: 'var(--text)' }}>
+                                {Math.round(conf.probability * 100)}%
+                              </div>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: 2 }}>Probability</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
