@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 import joblib
-import whisper
+from faster_whisper import WhisperModel
 import tempfile
 import shutil
 from pydub import AudioSegment
@@ -147,9 +147,21 @@ _WHISPER_MODEL = None
 def _get_whisper_model():
     global _WHISPER_MODEL
     if _WHISPER_MODEL is None:
-        print("Loading Whisper model (this may take a moment on first run)...")
-        _WHISPER_MODEL = whisper.load_model("small")
-        print("Whisper model loaded.")
+        # Upgraded from Whisper small to Faster-Whisper medium.en for:
+        # - significantly improved transcription accuracy
+        # - better handling of technical vocabulary (ML, APIs, system design terms)
+        # - improved robustness for interview-style conversational speech
+        # - lower latency inference compared to original Whisper implementation
+        print("Loading Faster-Whisper medium.en model...")
+        for device, compute_type in [("cuda", "float16"), ("cuda", "int8"), ("cpu", "int8")]:
+            try:
+                _WHISPER_MODEL = WhisperModel("medium.en", device=device, compute_type=compute_type)
+                print(f"Faster-Whisper loaded: device={device}, compute_type={compute_type}")
+                break
+            except Exception as e:
+                print(f"  [{device}/{compute_type}] failed: {e} — trying fallback...")
+        if _WHISPER_MODEL is None:
+            raise RuntimeError("Failed to initialize Faster-Whisper on any device/compute_type.")
     return _WHISPER_MODEL
 
 def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
@@ -178,10 +190,11 @@ def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
         audio.export(temp_wav_path, format="wav")
         audio_duration_seconds = len(audio) / 1000.0
 
-        # Step 2: Transcribe with Whisper
-        print("Transcribing audio with Whisper...")
-        result = _get_whisper_model().transcribe(temp_wav_path)
-        transcription = result["text"]
+        # Step 2: Transcribe with Faster-Whisper
+        print("Transcribing audio with Faster-Whisper...")
+        segments_gen, _ = _get_whisper_model().transcribe(temp_wav_path, beam_size=5)
+        segments = [{"start": seg.start, "end": seg.end, "text": seg.text.strip()} for seg in segments_gen]
+        transcription = " ".join(seg["text"] for seg in segments)
         print(f"Transcription: \"{transcription}\"")
 
         # Step 3: Extract features

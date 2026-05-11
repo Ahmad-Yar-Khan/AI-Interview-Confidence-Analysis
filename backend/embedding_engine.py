@@ -112,3 +112,14 @@ class EmbeddingEngine:
     def cosine(a: np.ndarray, b: np.ndarray) -> float:
         """Direct cosine similarity between two L2-normalized vectors."""
         return float(np.clip(np.dot(a, b), 0.0, 1.0))
+
+    @staticmethod
+    def rank_chunks(query_vec: np.ndarray, corpus_vecs: np.ndarray, top_k: int = 2) -> list[int]:
+        """
+        Rank a small corpus of L2-normalized vectors by cosine similarity to query.
+        Uses numpy dot product — suitable for small N (resume chunks, not the full bank).
+        Returns indices sorted by descending similarity.
+        """
+        scores  = corpus_vecs @ query_vec
+        top_k   = min(top_k, len(scores))
+        return list(np.argsort(scores)[::-1][:top_k])

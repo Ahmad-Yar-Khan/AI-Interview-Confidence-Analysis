@@ -1,111 +1,115 @@
 /**
  * ReadyScreen.jsx
  * ---------------
- * Shown after resume is parsed and questions are selected.
- * Displays: profile summary, category distribution, question preview, scoring explainer.
+ * Configure screen shown after resume upload.
+ * User optionally enters a target role and/or job description before
+ * generating questions. Both fields are optional.
  */
 
-import React from 'react'
-import { CAT_META } from './ProfileStrip'
+import React, { useState } from 'react'
 
-export default function ReadyScreen({ profile, questions, onStart }) {
-  if (!profile || !questions.length) return null
+export default function ReadyScreen({ profile, onStart, loading, error }) {
+  const [role, setRole] = useState('')
+  const [jd,   setJd]   = useState('')
 
-  // Count per category
-  const catCounts = {}
-  questions.forEach(q => {
-    catCounts[q.category] = (catCounts[q.category] || 0) + 1
-  })
+  if (!profile) return null
 
-  const diffCounts = { Easy: 0, Medium: 0, Hard: 0 }
-  questions.forEach(q => { diffCounts[q.difficulty] = (diffCounts[q.difficulty] || 0) + 1 })
+  const hasContext = role.trim() || jd.trim()
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '28px 24px' }}>
       <div className="fade-in">
 
-        {/* Ready header */}
-        <div style={{ marginBottom: 24 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: '1.6rem', marginBottom: 6 }}>
-            Interview Ready, <span style={{ color: 'var(--accent)' }}>{profile.name.split(' ')[0]}</span>
+            Ready, <span style={{ color: 'var(--accent)' }}>{profile.name.split(' ')[0]}</span>
           </h2>
           <p style={{ color: 'var(--text2)', fontSize: '0.88rem' }}>
-            Vector search matched <strong style={{ color: 'var(--text)' }}>{questions.length} questions</strong> tailored
-            to your skills and experience — weighted by resume relevance.
+            Resume uploaded successfully. Optionally tell us what role you're interviewing for
+            — questions will be tailored to the gap between your profile and the target role.
           </p>
         </div>
 
-        {/* Category distribution */}
+        {/* Job context card */}
         <div className="card" style={{ marginBottom: 18 }}>
-          <div style={{ fontWeight: 600, marginBottom: 14, fontSize: '0.88rem' }}>
-            Question Distribution
+          <div style={{ fontWeight: 600, marginBottom: 4, fontSize: '0.88rem' }}>
+            Target Role
+            <span style={{
+              marginLeft: 8, fontSize: '0.7rem', fontWeight: 400,
+              color: 'var(--muted)', fontFamily: 'var(--font-mono)',
+            }}>optional</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px,1fr))', gap: 10 }}>
-            {Object.entries(catCounts).map(([cat, count]) => {
-              const meta = CAT_META[cat] || { color: '#6b7794', label: cat }
-              return (
-                <div key={cat} style={{
-                  background: 'var(--surface2)',
-                  border: `1px solid var(--border)`,
-                  borderLeft: `3px solid ${meta.color}`,
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '12px 14px',
-                }}>
-                  <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.6rem', color: meta.color, lineHeight: 1 }}>
-                    {count}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text2)', marginTop: 4, lineHeight: 1.3 }}>
-                    {meta.label}
-                    {cat === 'HR & Behavioral' && (
-                      <span style={{ color: 'var(--muted)', display: 'block' }}>Open-ended</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+          <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 10 }}>
+            e.g. "Senior Backend Engineer at Google" or "ML Engineer (NLP focus)"
           </div>
+          <input
+            type="text"
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            placeholder="Job title or role…"
+            maxLength={120}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--surface2)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '9px 12px',
+              color: 'var(--text)', fontSize: '0.88rem',
+              outline: 'none',
+              transition: 'border-color 0.2s',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+            onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+          />
 
-          {/* Difficulty split */}
-          <div style={{ display: 'flex', gap: 12, marginTop: 14 }}>
-            {Object.entries(diffCounts).map(([d, n]) => n > 0 && (
-              <span key={d} className={`diff-badge diff-${d}`}>{n} {d}</span>
-            ))}
+          <div style={{ fontWeight: 600, marginBottom: 4, marginTop: 18, fontSize: '0.88rem' }}>
+            Job Description
+            <span style={{
+              marginLeft: 8, fontSize: '0.7rem', fontWeight: 400,
+              color: 'var(--muted)', fontFamily: 'var(--font-mono)',
+            }}>optional</span>
           </div>
-        </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 10 }}>
+            Paste the JD and Gemini will generate questions that probe your fit for the specific requirements.
+          </div>
+          <textarea
+            value={jd}
+            onChange={e => setJd(e.target.value)}
+            placeholder="Paste job description here…"
+            rows={6}
+            maxLength={4000}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--surface2)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '9px 12px',
+              color: 'var(--text)', fontSize: '0.85rem',
+              lineHeight: 1.55, resize: 'vertical',
+              fontFamily: 'inherit', outline: 'none',
+              transition: 'border-color 0.2s',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+            onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+          />
+          {jd.length > 3500 && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4, textAlign: 'right' }}>
+              {jd.length}/4000
+            </div>
+          )}
 
-        {/* Question preview */}
-        <div className="card" style={{ marginBottom: 18 }}>
-          <div style={{ fontWeight: 600, marginBottom: 12, fontSize: '0.88rem' }}>
-            Preview (first {Math.min(4, questions.length)} questions)
-          </div>
-          {questions.slice(0, 4).map((q, i) => {
-            const meta = CAT_META[q.category] || { color: '#6b7794' }
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 12,
-                padding: '10px 0',
-                borderBottom: i < 3 ? '1px solid var(--border)' : 'none',
-              }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--accent)', marginTop: 2, flexShrink: 0 }}>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div style={{ flex: 1, fontSize: '0.83rem', lineHeight: 1.45 }}>
-                  {q.question}
-                  {!q.has_answer && (
-                    <span style={{ fontSize: '0.68rem', color: 'var(--muted)', marginLeft: 6 }}>
-                      (open-ended)
-                    </span>
-                  )}
-                </div>
-                <span className={`diff-badge diff-${q.difficulty}`} style={{ flexShrink: 0 }}>
-                  {q.difficulty}
-                </span>
-              </div>
-            )
-          })}
-          {questions.length > 4 && (
-            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', paddingTop: 10 }}>
-              +{questions.length - 4} more questions…
+          {hasContext && (
+            <div style={{
+              marginTop: 14,
+              background: 'rgba(99,102,241,0.07)',
+              border: '1px solid rgba(99,102,241,0.2)',
+              borderRadius: 8, padding: '10px 14px',
+              fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.55,
+            }}>
+              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>RAG mode active —</span>{' '}
+              questions will be generated using your resume <em>and</em> the target role context,
+              focusing on skills the role requires that your profile may not fully cover.
             </div>
           )}
         </div>
@@ -119,12 +123,12 @@ export default function ReadyScreen({ profile, questions, onStart }) {
             {[
               {
                 icon: '🧠', label: 'Conceptual',
-                desc: 'TF-IDF cosine similarity between your answer and the model answer',
+                desc: 'Semantic similarity between your answer and the model answer',
                 sub: 'Technical questions',
               },
               {
                 icon: '⚙️', label: 'Technical',
-                desc: 'Overlap of domain-specific keywords relevant to the question category',
+                desc: 'Domain-specific keyword overlap relevant to the question category',
                 sub: 'Technical questions',
               },
               {
@@ -150,15 +154,42 @@ export default function ReadyScreen({ profile, questions, onStart }) {
           </div>
         </div>
 
+        {/* Error */}
+        {error && (
+          <div style={{
+            marginBottom: 16,
+            background: 'rgba(248,113,113,0.08)',
+            border: '1px solid rgba(248,113,113,0.2)',
+            borderRadius: 8, padding: '10px 14px',
+            color: 'var(--red)', fontSize: '0.82rem',
+          }}>
+            ⚠ {error}
+          </div>
+        )}
+
         {/* Start button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button className="btn btn-primary" style={{ fontSize: '1rem', padding: '13px 32px' }}
-            onClick={onStart}>
-            ▶ Start Interview
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: '1rem', padding: '13px 32px', minWidth: 180 }}
+            onClick={() => onStart(role, jd)}
+            disabled={loading}
+          >
+            {loading
+              ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  Generating questions…
+                </span>
+              : hasContext
+                ? '▶ Generate & Start'
+                : '▶ Start Interview'
+            }
           </button>
-          <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-            ~{questions.length * 2}–{questions.length * 4} minutes
-          </span>
+          {!loading && (
+            <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+              ~24–48 seconds to generate
+            </span>
+          )}
         </div>
 
       </div>

@@ -31,15 +31,10 @@ export function useInterview() {
   const handleUpload = useCallback(async (file) => {
     setLoading(true); setError(null)
     try {
-      const result  = await uploadResume(file)
-      const sid     = result.session_id
-      const prof    = result.profile
-
-      setSessionId(sid)
-      setProfile(prof)
-
-      const qResult = await fetchQuestions(sid, 12)
-      setQuestions(qResult.questions)
+      const result = await uploadResume(file)
+      setSessionId(result.session_id)
+      setProfile(result.profile)
+      setQuestions([])
       setCurrentIndex(0)
       setAnswers({})
       setReport(null)
@@ -52,10 +47,23 @@ export function useInterview() {
   }, [])
 
   // ── 2. Start Interview ───────────────────────────────────
-  const startInterview = useCallback(() => {
-    setCurrentIndex(0)
-    setStep('interview')
-  }, [])
+  const startInterview = useCallback(async (role = '', jd = '') => {
+    if (!sessionId) return
+    setLoading(true); setError(null)
+    try {
+      const qResult = await fetchQuestions(sessionId, 12, role, jd)
+      setQuestions(qResult.questions)
+      setCurrentIndex(0)
+      setAnswers({})
+      setConfidenceScores({})
+      setReport(null)
+      setStep('interview')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [sessionId])
 
   // ── 3. Submit Answer ─────────────────────────────────────
   const submitAnswer = useCallback(async (userAnswer, replayCount = 0, audioBlob = null) => {
@@ -67,7 +75,7 @@ export function useInterview() {
         session_id:    sessionId,
         question_id:   q.id,
         question_text: q.question,
-        model_answer:  q.answer,        // null for HR questions
+        model_answer:  q.model_answer ?? null,
         user_answer:   userAnswer,
         category:      q.category,
         difficulty:    q.difficulty,
@@ -77,7 +85,7 @@ export function useInterview() {
         ...prev,
         [q.id]: {
           userAnswer,
-          modelAnswer:   q.answer,
+          modelAnswer:   q.model_answer ?? null,
           overall:       result.overall,
           is_behavioral: result.is_behavioral,
           angles:        result.angles,

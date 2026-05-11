@@ -14,6 +14,7 @@ import ReadyScreen         from './components/ReadyScreen'
 import InterviewScreen     from './components/InterviewScreen'
 import ReportScreen        from './components/ReportScreen'
 import ConfidenceTestPage  from './components/ConfidenceTestPage'
+import QuestionsPage       from './components/QuestionsPage'
 
 // ── Step indicator ────────────────────────────────────────
 
@@ -131,9 +132,15 @@ export default function App() {
   const [showConfidence, setShowConfidence] = useState(
     () => window.location.hash === '#confidence-test'
   )
+  const [showQuestions, setShowQuestions] = useState(
+    () => window.location.hash === '#questions'
+  )
 
   useEffect(() => {
-    const handler = () => setShowConfidence(window.location.hash === '#confidence-test')
+    const handler = () => {
+      setShowConfidence(window.location.hash === '#confidence-test')
+      setShowQuestions(window.location.hash === '#questions')
+    }
     window.addEventListener('hashchange', handler)
     return () => window.removeEventListener('hashchange', handler)
   }, [])
@@ -142,6 +149,7 @@ export default function App() {
     const next = !showConfidence
     window.location.hash = next ? '#confidence-test' : ''
     setShowConfidence(next)
+    setShowQuestions(false)
   }
 
   if (showConfidence) {
@@ -149,6 +157,15 @@ export default function App() {
       <div style={{ minHeight: '100vh' }}>
         <TopBar onToggleConfidence={toggleConfidence} confidenceActive />
         <ConfidenceTestPage />
+      </div>
+    )
+  }
+
+  if (showQuestions) {
+    return (
+      <div style={{ minHeight: '100vh' }}>
+        <TopBar onToggleConfidence={toggleConfidence} confidenceActive={false} />
+        <QuestionsPage questions={interview.questions} />
       </div>
     )
   }
@@ -192,8 +209,9 @@ export default function App() {
         {step === 'ready' && (
           <ReadyScreen
             profile={profile}
-            questions={questions}
             onStart={startInterview}
+            loading={loading}
+            error={error}
           />
         )}
 

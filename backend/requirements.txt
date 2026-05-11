@@ -16,8 +16,7 @@ pdfplumber
 google-generativeai
 
 # Confidence analysis
-whisper
-openai-whisper
+faster-whisper
 pydub
 scikit-learn==1.6.1
 numpy
@@ -28,3 +27,4 @@ xgboost
 # Utilities
 python-dotenv
 aiofiles
+httpx

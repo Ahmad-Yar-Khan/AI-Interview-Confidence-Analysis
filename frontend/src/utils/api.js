@@ -44,11 +44,12 @@ export async function uploadResume(file) {
  * @param {number} total     Max questions to return (default 12)
  * @returns {{ questions: object[] }}
  */
-export async function fetchQuestions(sessionId, total = 12) {
+export async function fetchQuestions(sessionId, total = 12, role = '', jd = '') {
   try {
-    const { data } = await api.get(`/questions/${sessionId}`, {
-      params: { total },
-    })
+    const params = { total }
+    if (role.trim()) params.role = role.trim()
+    if (jd.trim())   params.jd   = jd.trim()
+    const { data } = await api.get(`/questions/${sessionId}`, { params })
     return data
   } catch (err) {
     throw new Error(extractError(err))
