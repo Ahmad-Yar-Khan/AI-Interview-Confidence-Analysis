@@ -71,7 +71,7 @@ export default function ReadyScreen({ profile, onStart, loading, error }) {
             }}>optional</span>
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 10 }}>
-            Paste the JD and Gemini will generate questions that probe your fit for the specific requirements.
+            Paste the JD and your questions will be tailored to probe your fit for the specific requirements.
           </div>
           <textarea
             value={jd}
@@ -107,9 +107,9 @@ export default function ReadyScreen({ profile, onStart, loading, error }) {
               borderRadius: 8, padding: '10px 14px',
               fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.55,
             }}>
-              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>RAG mode active —</span>{' '}
-              questions will be generated using your resume <em>and</em> the target role context,
-              focusing on skills the role requires that your profile may not fully cover.
+              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Role context added —</span>{' '}
+              your questions will be tailored to this specific position and your background,
+              so you practice exactly what this role will put you through.
             </div>
           )}
         </div>
@@ -123,22 +123,22 @@ export default function ReadyScreen({ profile, onStart, loading, error }) {
             {[
               {
                 icon: '🧠', label: 'Conceptual',
-                desc: 'Semantic similarity between your answer and the model answer',
+                desc: 'How well your answer captures the core idea and underlying concept',
                 sub: 'Technical questions',
               },
               {
                 icon: '⚙️', label: 'Technical',
-                desc: 'Domain-specific keyword overlap relevant to the question category',
+                desc: 'Use of the right technical terms and domain-specific knowledge',
                 sub: 'Technical questions',
               },
               {
                 icon: '📋', label: 'Completeness',
-                desc: 'Coverage of key points from the model answer in your response',
+                desc: 'How thoroughly you cover all the important points in your answer',
                 sub: 'Technical questions',
               },
               {
                 icon: '🎯', label: 'Effort Score',
-                desc: 'Effort, behavioral keyword richness, and STAR method structure',
+                desc: 'Depth of your response, use of real examples, and clear STAR structure',
                 sub: 'HR & Behavioral',
               },
             ].map(({ icon, label, desc, sub }) => (

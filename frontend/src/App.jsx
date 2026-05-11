@@ -16,6 +16,146 @@ import ReportScreen        from './components/ReportScreen'
 import ConfidenceTestPage  from './components/ConfidenceTestPage'
 import QuestionsPage       from './components/QuestionsPage'
 
+// ── Loading screen quotes ─────────────────────────────────
+const QUESTION_QUOTES = [
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "You've prepared for this. Trust yourself.", author: null },
+  { text: "Interview jitters? That's just excitement doing its job.", author: null },
+  { text: "Every expert was once a beginner.", author: null },
+  { text: "You're not just answering questions — you're telling your story.", author: null },
+  { text: "Confidence isn't always being right. It's not fearing to be wrong.", author: null },
+]
+const REPORT_QUOTES = [
+  { text: "Win or learn — there's no losing here.", author: null },
+  { text: "Every answer you gave was a step forward.", author: null },
+  { text: "Self-awareness is the first step to mastery.", author: null },
+  { text: "The courage to show up is already half the battle.", author: null },
+  { text: "Growth happens in the moments you push through.", author: null },
+  { text: "Your next interview will be sharper because of this one.", author: null },
+]
+
+function LoadingScreen({ mode }) {
+  const quotes = mode === 'report' ? REPORT_QUOTES : QUESTION_QUOTES
+  const [qi, setQi] = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVisible(false)
+      const swap = setTimeout(() => {
+        setQi(i => (i + 1) % quotes.length)
+        setVisible(true)
+      }, 350)
+      return () => clearTimeout(swap)
+    }, 3800)
+    return () => clearInterval(t)
+  }, [quotes.length])
+
+  const q = quotes[qi]
+  const isReport = mode === 'report'
+  const color = isReport ? 'var(--green)' : 'var(--accent)'
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'var(--bg)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      zIndex: 200, padding: '0 24px',
+    }}>
+      <style>{`
+        @keyframes ls-wave {
+          0%, 100% { transform: scaleY(0.3); }
+          50%       { transform: scaleY(1); }
+        }
+        @keyframes ls-shimmer {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+        @keyframes ls-float {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-6px); }
+        }
+      `}</style>
+
+      <div style={{
+        fontFamily: 'var(--font-serif)', fontSize: '1.1rem',
+        letterSpacing: '-0.02em', color: 'var(--text2)',
+        marginBottom: 52, opacity: 0.65,
+      }}>
+        Smart<span style={{ color: 'var(--accent)' }}>Interview</span>
+      </div>
+
+      <div style={{
+        display: 'flex', gap: 5, alignItems: 'center', height: 52,
+        marginBottom: 36,
+        animation: 'ls-float 3.2s ease-in-out infinite',
+      }}>
+        {[0.4, 0.65, 0.9, 1, 0.75, 1, 0.85, 0.6, 0.9, 0.5, 0.7, 0.45].map((h, i) => (
+          <div key={i} style={{
+            width: 5, borderRadius: 3,
+            background: color,
+            height: `${h * 100}%`,
+            animation: `ls-wave ${0.8 + i * 0.07}s ease-in-out infinite`,
+            animationDelay: `${i * 0.08}s`,
+            opacity: 0.8,
+          }} />
+        ))}
+      </div>
+
+      <div style={{
+        fontSize: '1.3rem', fontWeight: 700,
+        color: 'var(--text)', marginBottom: 10,
+        textAlign: 'center', letterSpacing: '-0.02em',
+      }}>
+        {isReport ? 'Compiling Your Results' : 'Crafting Your Interview'}
+      </div>
+
+      <div style={{
+        fontSize: '0.84rem', color: 'var(--text2)',
+        marginBottom: 44, textAlign: 'center',
+        lineHeight: 1.6, maxWidth: 360,
+      }}>
+        {isReport
+          ? 'Reviewing your answers and preparing your detailed feedback…'
+          : 'Analyzing your resume and personalizing your questions…'
+        }
+      </div>
+
+      <div style={{
+        width: 260, height: 2,
+        background: 'var(--border)',
+        borderRadius: 99, overflow: 'hidden',
+        marginBottom: 52, position: 'relative',
+      }}>
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, width: '40%',
+          background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+          animation: 'ls-shimmer 1.8s ease-in-out infinite',
+        }} />
+      </div>
+
+      <div style={{
+        maxWidth: 440, textAlign: 'center',
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 0.35s ease',
+      }}>
+        <div style={{
+          fontSize: '0.92rem', color: 'var(--text)',
+          lineHeight: 1.7, fontStyle: 'italic', marginBottom: 8,
+        }}>
+          "{q.text}"
+        </div>
+        {q.author && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+            — {q.author}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Step indicator ────────────────────────────────────────
 
 const STEPS = [
@@ -118,7 +258,7 @@ function TopBar({ onToggleConfidence, confidenceActive }) {
           borderRadius: 'var(--radius-pill)',
           padding: '3px 12px',
         }}>
-          AI-Powered · 11 Categories · FAISS Vector Search
+          AI-Powered · Voice Analysis · Personalized
         </div>
       </div>
     </div>
@@ -135,6 +275,7 @@ export default function App() {
   const [showQuestions, setShowQuestions] = useState(
     () => window.location.hash === '#questions'
   )
+  const [isLoadingReport, setIsLoadingReport] = useState(false)
 
   useEffect(() => {
     const handler = () => {
@@ -185,6 +326,14 @@ export default function App() {
     clearError,
   } = interview
 
+  const handleShowReport = async () => {
+    setIsLoadingReport(true)
+    await showReport()
+    setIsLoadingReport(false)
+  }
+
+  if (isLoadingReport) return <LoadingScreen mode="report" />
+
   // Upload screen — full page, no bars
   if (step === 'upload') {
     return (
@@ -198,6 +347,8 @@ export default function App() {
       </div>
     )
   }
+
+  if (step === 'ready' && loading) return <LoadingScreen mode="questions" />
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -229,7 +380,7 @@ export default function App() {
             onSubmit={submitAnswer}
             onNext={goNext}
             onPrev={goPrev}
-            onShowReport={showReport}
+            onShowReport={handleShowReport}
             onClearError={clearError}
           />
         )}
