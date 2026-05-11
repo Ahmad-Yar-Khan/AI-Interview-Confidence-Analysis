@@ -233,7 +233,7 @@ def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
         print(f"  Confidence Probability (P(Confident)): {prediction['confidence_probability']:.2f}")
         print(f"  Confidence Score (1-10): {prediction['confidence_score_1_to_10']:.1f}")
         
-        return prediction
+        return {**prediction, "transcript": transcription}
 
     except Exception as e:
         print(f"An unexpected error occurred during prediction: {e}")

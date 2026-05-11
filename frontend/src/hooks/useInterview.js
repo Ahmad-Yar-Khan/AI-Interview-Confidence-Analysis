@@ -71,20 +71,54 @@ export function useInterview() {
     if (!q || !sessionId) return
     setLoading(true); setError(null)
     try {
+      // Step 1: transcribe with Whisper (blocking) — far more accurate than
+      // browser SR, so this is what goes to Gemini for scoring.
+      let textForScoring = userAnswer  // SR text as fallback
+      const qid = q.id
+
+      if (audioBlob) {
+        setConfidenceScores(prev => ({
+          ...prev,
+          [qid]: { status: 'pending', label: null, probability: null, score: null },
+        }))
+        try {
+          const confResult = await submitConfidenceApi(audioBlob)
+          if (confResult.transcript?.trim()) {
+            textForScoring = confResult.transcript.trim()
+          }
+          setConfidenceScores(prev => ({
+            ...prev,
+            [qid]: {
+              status:      'done',
+              label:       confResult.predicted_label,
+              probability: confResult.confidence_probability,
+              score:       confResult.confidence_score_1_to_10,
+            },
+          }))
+        } catch {
+          setConfidenceScores(prev => ({
+            ...prev,
+            [qid]: { status: 'failed', label: null, probability: null, score: null },
+          }))
+        }
+      }
+
+      // Step 2: score using the Whisper transcript
       const result = await scoreAnswer({
         session_id:    sessionId,
         question_id:   q.id,
         question_text: q.question,
         model_answer:  q.model_answer ?? null,
-        user_answer:   userAnswer,
+        user_answer:   textForScoring,
         category:      q.category,
         difficulty:    q.difficulty,
-        has_answer:    q.has_answer,    // false for HR & Behavioral
+        has_answer:    q.has_answer,
       })
+
       setAnswers(prev => ({
         ...prev,
         [q.id]: {
-          userAnswer,
+          userAnswer:    textForScoring,
           modelAnswer:   q.model_answer ?? null,
           overall:       result.overall,
           is_behavioral: result.is_behavioral,
@@ -92,33 +126,6 @@ export function useInterview() {
           replayCount,
         },
       }))
-
-      // Fire confidence analysis in background (non-blocking)
-      if (audioBlob) {
-        const qid = q.id
-        setConfidenceScores(prev => ({
-          ...prev,
-          [qid]: { status: 'pending', label: null, probability: null, score: null },
-        }))
-        submitConfidenceApi(audioBlob)
-          .then(r => {
-            setConfidenceScores(prev => ({
-              ...prev,
-              [qid]: {
-                status:      'done',
-                label:       r.predicted_label,
-                probability: r.confidence_probability,
-                score:       r.confidence_score_1_to_10,
-              },
-            }))
-          })
-          .catch(() => {
-            setConfidenceScores(prev => ({
-              ...prev,
-              [qid]: { status: 'failed', label: null, probability: null, score: null },
-            }))
-          })
-      }
     } catch (err) {
       setError(err.message)
     } finally {

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ScoreBlock from "./ScoreBlock";
 import { CAT_META } from "./ProfileStrip";
 
 export default function InterviewScreen({
@@ -21,8 +20,7 @@ export default function InterviewScreen({
   // ttsPhase: idle | speaking | counting | recording | done
   const [ttsPhase, setTtsPhase] = useState("idle");
   const [countdown, setCountdown] = useState(5);
-  const [transcript, setTranscript] = useState("");
-  const [interimText, setInterimText] = useState("");
+  const [hasAudio, setHasAudio] = useState(false); // true only after blob saved
   const [replayMap, setReplayMap] = useState({}); // { [qId]: count }
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
@@ -34,6 +32,7 @@ export default function InterviewScreen({
   const audioBlobRef = useRef(null);
   const wantBlobRef = useRef(false); // true only when manually stopping to submit
   const elAudioRef = useRef(null); // ElevenLabs Audio element (for cancellation)
+  const transcriptRef = useRef(""); // silent SR collection — not displayed
 
   const isAnswered = !!currentAnswer;
   const questionId = currentQuestion?.id;
@@ -45,6 +44,8 @@ export default function InterviewScreen({
   function stopSequence() {
     wantBlobRef.current = false;
     seqRef.current += 1;
+    setHasAudio(false);
+    transcriptRef.current = "";
     try {
       window.speechSynthesis?.cancel();
     } catch (_) {}
@@ -73,41 +74,33 @@ export default function InterviewScreen({
   }
 
   function runRecording(seq) {
-    // Reset audio capture state for this session
     audioBlobRef.current = null;
     audioChunksRef.current = [];
+    transcriptRef.current = "";
 
-    // ── SpeechRecognition for live transcript ─────────────
+    // ── SpeechRecognition — runs silently, result goes to ref only ─
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SR) {
       const rec = new SR();
       rec.continuous = true;
-      rec.interimResults = true;
+      rec.interimResults = false; // only final results needed
       rec.lang = "en-US";
-
-      let final = "";
       rec.onresult = (e) => {
         if (seqRef.current !== seq) return;
-        let interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) {
-            final += e.results[i][0].transcript + " ";
-          } else {
-            interim += e.results[i][0].transcript;
+            transcriptRef.current += e.results[i][0].transcript + " ";
           }
         }
-        setTranscript(final);
-        setInterimText(interim);
       };
       rec.onerror = (e) => {
         if (e.error !== "aborted") console.warn("SR:", e.error);
       };
-
       recognitionRef.current = rec;
       rec.start();
     }
 
-    // ── MediaRecorder for audio capture (confidence analysis) ─
+    // ── MediaRecorder for audio capture ───────────────────────────
     if (navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices
         .getUserMedia({ audio: true })
@@ -127,12 +120,23 @@ export default function InterviewScreen({
                 type: mr.mimeType || "audio/webm",
               });
               wantBlobRef.current = false;
+              // Only enable submit if we actually captured audio data
+              if (audioChunksRef.current.length > 0) {
+                setHasAudio(true);
+              }
             }
           };
           mediaRecorderRef.current = mr;
           mr.start();
         })
-        .catch((err) => console.warn("MediaRecorder failed to start:", err));
+        .catch((err) => {
+          console.warn("MediaRecorder failed to start:", err);
+          // Mic unavailable — still let user submit via SR transcript
+          setHasAudio(true);
+        });
+    } else {
+      // No MediaRecorder support — fall back to SR-only
+      setHasAudio(true);
     }
 
     setTtsPhase("recording");
@@ -265,8 +269,6 @@ export default function InterviewScreen({
       return;
     }
 
-    setTranscript("");
-    setInterimText("");
     runTTS(seq, currentQuestion.question);
   }, [currentIndex, isAnswered]); // eslint-disable-line
 
@@ -283,21 +285,21 @@ export default function InterviewScreen({
     }));
     stopSequence();
     const seq = seqRef.current;
-    setTranscript("");
-    setInterimText("");
     runTTS(seq, currentQuestion.question);
   };
 
   const handleStopRecording = () => {
-    stopSequence(); // zeroes wantBlobRef, stops MR (async onstop pending)
-    wantBlobRef.current = true; // onstop fires after this sync block → sees true → saves blob
-    setInterimText("");
+    // stopSequence resets wantBlobRef to false synchronously;
+    // setting it back to true immediately after means onstop (async) sees true → saves blob
+    stopSequence();
+    wantBlobRef.current = true;
     setTtsPhase("done");
   };
 
   const handleSubmit = () => {
-    if (!transcript.trim() || loading) return;
-    onSubmit(transcript.trim(), replayCount, audioBlobRef.current);
+    if (!hasAudio || loading) return;
+    const text = transcriptRef.current.trim() || "[voice response]";
+    onSubmit(text, replayCount, audioBlobRef.current);
   };
 
   // ── Derived render flags ──────────────────────────────────
@@ -584,153 +586,102 @@ export default function InterviewScreen({
 
             {/* Recording phase */}
             {isRecording && (
-              <div style={{ marginTop: 4 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 10,
-                  }}
-                >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  padding: "36px 0 28px",
+                  gap: 20,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div
                     style={{
-                      width: 10,
-                      height: 10,
+                      width: 12,
+                      height: 12,
                       borderRadius: "50%",
                       background: "#f87171",
                       animation: "si-pulse 1.1s ease-in-out infinite",
                       flexShrink: 0,
                     }}
                   />
-                  <span
-                    style={{
-                      fontSize: "0.82rem",
-                      color: "#f87171",
-                      fontWeight: 500,
-                    }}
-                  >
+                  <span style={{ fontSize: "0.9rem", color: "#f87171", fontWeight: 600 }}>
                     Recording
                   </span>
-                  <span style={{ fontSize: "0.76rem", color: "var(--muted)" }}>
+                  <span style={{ fontSize: "0.82rem", color: "var(--muted)" }}>
                     — speak your answer clearly
                   </span>
                 </div>
-
-                <div
+                <button
+                  onClick={handleStopRecording}
                   style={{
-                    minHeight: 110,
-                    background: "var(--surface2)",
-                    border: "1px solid var(--border)",
+                    padding: "9px 24px",
                     borderRadius: "var(--radius-sm)",
-                    padding: "12px 14px",
-                    fontSize: "0.88rem",
-                    lineHeight: 1.65,
-                    color: "var(--text)",
+                    background: "rgba(248,113,113,0.10)",
+                    border: "1px solid rgba(248,113,113,0.3)",
+                    color: "#f87171",
+                    cursor: "pointer",
+                    fontSize: "0.84rem",
+                    fontWeight: 500,
                   }}
                 >
-                  {transcript || interimText ? (
-                    <>
-                      <span>{transcript}</span>
-                      <span style={{ color: "var(--muted)" }}>
-                        {interimText}
-                      </span>
-                    </>
-                  ) : (
-                    <span style={{ color: "var(--muted)" }}>
-                      Listening… start speaking
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginTop: 10,
-                  }}
-                >
-                  <button
-                    onClick={handleStopRecording}
-                    style={{
-                      padding: "7px 18px",
-                      borderRadius: "var(--radius-sm)",
-                      background: "rgba(248,113,113,0.10)",
-                      border: "1px solid rgba(248,113,113,0.3)",
-                      color: "#f87171",
-                      cursor: "pointer",
-                      fontSize: "0.82rem",
-                      fontWeight: 500,
-                    }}
-                  >
-                    ■ Stop Recording
-                  </button>
-                </div>
+                  ■ Stop Recording
+                </button>
               </div>
             )}
 
-            {/* Done phase — review & submit */}
+            {/* Done phase — submit */}
             {isDone && (
-              <div style={{ marginTop: 4 }}>
-                <div
-                  style={{
-                    fontSize: "0.74rem",
-                    color: "var(--text2)",
-                    marginBottom: 6,
-                  }}
-                >
-                  Your answer
-                </div>
-                <div
-                  style={{
-                    background: "var(--surface2)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "12px 14px",
-                    fontSize: "0.88rem",
-                    lineHeight: 1.65,
-                    color: transcript.trim() ? "var(--text)" : "var(--muted)",
-                    whiteSpace: "pre-wrap",
-                    minHeight: 60,
-                  }}
-                >
-                  {transcript.trim() ||
-                    "No speech detected — please try again."}
-                </div>
-                {!(
-                  window.SpeechRecognition || window.webkitSpeechRecognition
-                ) && (
-                  <p
-                    style={{
-                      fontSize: "0.74rem",
-                      color: "var(--muted)",
-                      marginTop: 6,
-                    }}
-                  >
-                    Speech recognition not supported. Use Chrome for voice
-                    input.
-                  </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  padding: "28px 0 20px",
+                  gap: 14,
+                }}
+              >
+                {hasAudio ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: "1.1rem", color: "var(--green)" }}>✓</span>
+                    <span style={{ fontSize: "0.88rem", color: "var(--text2)" }}>
+                      Answer recorded — ready to submit
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div
+                      className="spinner"
+                      style={{ width: 16, height: 16, borderWidth: 2 }}
+                    />
+                    <span style={{ fontSize: "0.84rem", color: "var(--muted)" }}>
+                      Saving audio…
+                    </span>
+                  </div>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* Already answered — read-only */}
+        {/* Already answered — submitted badge */}
         {isAnswered && (
           <div
             style={{
-              background: "var(--surface2)",
-              border: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "12px 16px",
+              background: "rgba(52,211,153,0.06)",
+              border: "1px solid rgba(52,211,153,0.2)",
               borderRadius: "var(--radius-sm)",
-              padding: "14px 16px",
-              fontSize: "0.88rem",
-              color: "var(--text2)",
-              lineHeight: 1.65,
-              whiteSpace: "pre-wrap",
             }}
           >
-            {currentAnswer.userAnswer}
+            <span style={{ fontSize: "1rem", color: "var(--green)" }}>✓</span>
+            <span style={{ fontSize: "0.84rem", color: "var(--text2)" }}>
+              Answer submitted
+            </span>
           </div>
         )}
 
@@ -764,18 +715,6 @@ export default function InterviewScreen({
           </div>
         )}
 
-        {/* Score block */}
-        {isAnswered && (
-          <ScoreBlock
-            answerData={{
-              overall: currentAnswer.overall,
-              is_behavioral: currentAnswer.is_behavioral,
-              angles: currentAnswer.angles,
-              modelAnswer: currentAnswer.modelAnswer,
-            }}
-          />
-        )}
-
         {/* Loading */}
         {loading && (
           <div
@@ -791,7 +730,7 @@ export default function InterviewScreen({
               style={{ width: 20, height: 20, borderWidth: 2 }}
             />
             <span style={{ fontSize: "0.82rem", color: "var(--text2)" }}>
-              Scoring your answer…
+              Saving answer…
             </span>
           </div>
         )}
@@ -846,9 +785,9 @@ export default function InterviewScreen({
               <button
                 className="btn btn-primary"
                 onClick={handleSubmit}
-                disabled={!transcript.trim() || loading}
+                disabled={!hasAudio || loading}
               >
-                {loading ? "Scoring…" : "Submit Answer"}
+                {loading ? "Saving…" : "Submit Answer"}
               </button>
             )}
 
