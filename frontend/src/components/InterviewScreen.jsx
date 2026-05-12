@@ -9,6 +9,7 @@ export default function InterviewScreen({
   answeredCount,
   allAnswered,
   progress,
+  hasPendingScores,
   loading,
   error,
   onSubmit,
@@ -730,8 +731,25 @@ export default function InterviewScreen({
               style={{ width: 20, height: 20, borderWidth: 2 }}
             />
             <span style={{ fontSize: "0.82rem", color: "var(--text2)" }}>
-              Saving answer…
+              Please wait…
             </span>
+          </div>
+        )}
+
+        {/* Background scoring indicator */}
+        {hasPendingScores && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 12,
+              fontSize: "0.78rem",
+              color: "var(--muted)",
+            }}
+          >
+            <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            Scoring answers in background…
           </div>
         )}
 
@@ -798,14 +816,24 @@ export default function InterviewScreen({
             )}
 
             {isAnswered && currentIndex === questions.length - 1 && (
-              <button className="btn btn-green" onClick={onShowReport}>
-                View Report →
+              <button
+                className="btn btn-green"
+                onClick={onShowReport}
+                disabled={hasPendingScores}
+                title={hasPendingScores ? "Scoring in progress…" : undefined}
+              >
+                {hasPendingScores ? "Scoring…" : "View Report →"}
               </button>
             )}
 
             {!isAnswered && allAnswered && (
-              <button className="btn btn-green" onClick={onShowReport}>
-                View Report →
+              <button
+                className="btn btn-green"
+                onClick={onShowReport}
+                disabled={hasPendingScores}
+                title={hasPendingScores ? "Scoring in progress…" : undefined}
+              >
+                {hasPendingScores ? "Scoring…" : "View Report →"}
               </button>
             )}
           </div>
@@ -916,18 +944,20 @@ export default function InterviewScreen({
                   setShowEndConfirm(false);
                   onShowReport();
                 }}
+                disabled={hasPendingScores}
+                title={hasPendingScores ? "Scoring in progress…" : undefined}
                 style={{
                   padding: "7px 18px",
                   borderRadius: "var(--radius-sm)",
-                  background: "rgba(248,113,113,0.12)",
+                  background: hasPendingScores ? "rgba(248,113,113,0.05)" : "rgba(248,113,113,0.12)",
                   border: "1px solid rgba(248,113,113,0.35)",
-                  color: "#f87171",
-                  cursor: "pointer",
+                  color: hasPendingScores ? "rgba(248,113,113,0.45)" : "#f87171",
+                  cursor: hasPendingScores ? "not-allowed" : "pointer",
                   fontSize: "0.84rem",
                   fontWeight: 600,
                 }}
               >
-                Yes, end interview
+                {hasPendingScores ? "Scoring…" : "Yes, end interview"}
               </button>
             </div>
           </div>

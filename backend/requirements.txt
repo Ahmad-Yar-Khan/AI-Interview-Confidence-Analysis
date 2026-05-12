@@ -12,8 +12,8 @@ pypdf
 python-docx
 pdfplumber
 
-# Gemini
-google-generativeai
+# Groq
+groq
 
 # Confidence analysis
 faster-whisper

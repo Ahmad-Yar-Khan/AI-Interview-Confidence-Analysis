@@ -1,12 +1,11 @@
 """
 gemini_client.py
 ----------------
-Gemini API wrapper for two tasks:
-  1. generate_questions(resume_text, total) -> list of question dicts
-  2. score_answer(question, model_answer, user_answer, category) -> score dict
+LLM wrapper — backed by Groq (llama-3.3-70b-versatile).
+Public API is identical to the original Gemini version so no other file changes.
 
-Requires env var: GEMINI_API_KEY
-Optional env var: GEMINI_MODEL  (default: gemini-1.5-flash)
+Requires env var: GROQ_API_KEY
+Optional env var: GROQ_MODEL  (default: llama-3.3-70b-versatile)
 """
 
 import os
@@ -14,21 +13,26 @@ import re
 import json
 import logging
 
-import google.generativeai as genai
+from groq import Groq
 
 logger = logging.getLogger(__name__)
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+_client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+_MODEL_NAME = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 
-def _model() -> genai.GenerativeModel:
-    return genai.GenerativeModel(_MODEL_NAME)
+def _chat(prompt: str) -> str:
+    """Send a single user-turn prompt and return the raw text response."""
+    response = _client.chat.completions.create(
+        model=_MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+    )
+    return response.choices[0].message.content
 
 
 def _parse_json(text: str):
-    """Strip markdown fences and parse JSON from Gemini's response."""
-    # Remove ```json ... ``` or ``` ... ``` wrappers
+    """Strip markdown fences and parse JSON from the model response."""
     text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text.strip())
     return json.loads(text.strip())
@@ -52,19 +56,17 @@ RESUME:
 """
 
 def infer_categories(resume_text: str) -> list[str]:
-    prompt   = _CATEGORY_PROMPT.format(resume_text=resume_text)
-    response = _model().generate_content(prompt)
-    cats     = _parse_json(response.text)
+    prompt = _CATEGORY_PROMPT.format(resume_text=resume_text)
+    cats   = _parse_json(_chat(prompt))
     if not isinstance(cats, list):
         raise ValueError("Expected a JSON array of category strings")
     cats = [str(c).strip() for c in cats if str(c).strip()]
-    logger.info(f"Gemini inferred categories: {cats}")
+    logger.info(f"Groq inferred categories: {cats}")
     return cats[:5]
 
 
 # ── Question Generation ───────────────────────────────────────
 
-# RAG path — used when resume chunks were retrieved per category
 _QUESTION_PROMPT = """You are an expert technical interviewer generating questions for a specific candidate.
 
 {job_section}CATEGORIES TO COVER:
@@ -93,7 +95,6 @@ Return ONLY a valid JSON array of exactly {total} questions. Each element:
 }}
 """
 
-# Fallback path — used when RAG is unavailable, passes full resume
 _QUESTION_PROMPT_FALLBACK = """You are an expert technical interviewer.
 Generate exactly {total} interview questions tailored specifically to this candidate.
 {job_section}
@@ -129,7 +130,6 @@ def generate_questions(
 
     if category_contexts:
         categories_str = "\n".join(f"  - {cat}" for cat in category_contexts)
-
         context_blocks = []
         for cat, chunks in category_contexts.items():
             block = f"[{cat}]\n" + "\n".join(f"  • {chunk}" for chunk in chunks)
@@ -150,15 +150,14 @@ def generate_questions(
             resume_text=resume_text,
         )
 
-    response  = _model().generate_content(prompt)
-    questions = _parse_json(response.text)
+    questions = _parse_json(_chat(prompt))
 
     for i, q in enumerate(questions):
         q.setdefault("id", f"q{i+1}")
         q.setdefault("has_answer", q.get("model_answer") is not None)
         q["question_id"] = q["id"]
 
-    logger.info(f"Gemini generated {len(questions)} questions")
+    logger.info(f"Groq generated {len(questions)} questions")
     return questions
 
 
@@ -197,23 +196,20 @@ def personalize_dataset_questions(questions: list[dict], resume_text: str) -> li
     if not questions:
         return questions
 
-    import json as _json
-    questions_json = _json.dumps(
+    questions_json = json.dumps(
         [{"id": q["id"], "question": q["question"], "category": q["category"],
           "difficulty": q["difficulty"], "model_answer": q.get("model_answer")}
          for q in questions],
         indent=2,
     )
 
-    prompt   = _PERSONALIZE_PROMPT.format(
+    prompt    = _PERSONALIZE_PROMPT.format(
         count=len(questions),
         questions_json=questions_json,
         resume_text=resume_text[:3000],
     )
-    response  = _model().generate_content(prompt)
-    rewritten = _parse_json(response.text)
+    rewritten = _parse_json(_chat(prompt))
 
-    # Merge back any fields Gemini didn't return (question_id etc.)
     id_map = {q["id"]: q for q in questions}
     result = []
     for rq in rewritten:
@@ -280,24 +276,21 @@ def generate_dataset_and_project_questions(
     resume_text: str,
     project_count: int = 4,
 ) -> tuple[list[dict], list[dict]]:
-    import json as _json
-
-    questions_json = _json.dumps(
+    questions_json = json.dumps(
         [{"id": q["id"], "question": q["question"], "category": q["category"],
           "difficulty": q["difficulty"], "model_answer": q.get("model_answer")}
          for q in dataset_qs],
         indent=2,
     )
 
-    prompt   = _COMBINED_QUESTION_PROMPT.format(
+    prompt = _COMBINED_QUESTION_PROMPT.format(
         dataset_count=len(dataset_qs),
         project_count=project_count,
         questions_json=questions_json,
         resume_text=resume_text[:3000],
         projects_text=projects_text,
     )
-    response = _model().generate_content(prompt)
-    result   = _parse_json(response.text)
+    result = _parse_json(_chat(prompt))
 
     out_dataset = result.get("dataset", [])
     out_project = result.get("project", [])
@@ -366,8 +359,7 @@ def generate_project_questions(
         projects_text=projects_text,
         avoid_section=avoid_section,
     )
-    response  = _model().generate_content(prompt)
-    questions = _parse_json(response.text)
+    questions = _parse_json(_chat(prompt))
 
     for i, q in enumerate(questions):
         q.setdefault("id", f"p{i+1}")
@@ -375,7 +367,7 @@ def generate_project_questions(
         q.setdefault("model_answer", None)
         q["question_id"] = q["id"]
 
-    logger.info(f"Gemini generated {len(questions)} project questions")
+    logger.info(f"Groq generated {len(questions)} project questions")
     return questions
 
 
@@ -426,19 +418,16 @@ def score_answer(
         user_answer=user_answer,
     )
 
-    response = _model().generate_content(prompt)
-    result = _parse_json(response.text)
+    result = _parse_json(_chat(prompt))
 
-    # Ensure all required fields exist with safe defaults
     result.setdefault("overall", 0)
     result.setdefault("is_behavioral", is_behavioral_hint == "true")
     result.setdefault("angles", {"conceptual": 0, "technical": 0, "completeness": 0})
     result.setdefault("feedback", "")
 
-    # Clamp all scores to 0-100
     result["overall"] = max(0, min(100, int(result["overall"])))
     for k in result["angles"]:
         result["angles"][k] = max(0, min(100, int(result["angles"][k])))
 
-    logger.info(f"Gemini scored answer: overall={result['overall']}")
+    logger.info(f"Groq scored answer: overall={result['overall']}")
     return result

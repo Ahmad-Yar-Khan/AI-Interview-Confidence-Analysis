@@ -316,6 +316,7 @@ export default function App() {
     profile, questions,
     currentIndex, currentQuestion, currentAnswer,
     answeredCount, allAnswered, progress,
+    hasPendingScores,
     confidenceScores,
     report,
     handleUpload,
@@ -375,6 +376,7 @@ export default function App() {
             answeredCount={answeredCount}
             allAnswered={allAnswered}
             progress={progress}
+            hasPendingScores={hasPendingScores}
             loading={loading}
             error={error}
             onSubmit={submitAnswer}

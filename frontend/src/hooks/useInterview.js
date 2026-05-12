@@ -66,15 +66,23 @@ export function useInterview() {
   }, [sessionId])
 
   // ── 3. Submit Answer ─────────────────────────────────────
-  const submitAnswer = useCallback(async (userAnswer, replayCount = 0, audioBlob = null) => {
+  const submitAnswer = useCallback((userAnswer, replayCount = 0, audioBlob = null) => {
     const q = questions[currentIndex]
     if (!q || !sessionId) return
-    setLoading(true); setError(null)
-    try {
-      // Step 1: transcribe with Whisper (blocking) — far more accurate than
-      // browser SR, so this is what goes to Gemini for scoring.
+
+    const qid = q.id
+
+    // Immediately mark as answered so the UI unlocks (Next → appears now).
+    // scoring:true is a placeholder — replaced when the background finishes.
+    setAnswers(prev => ({
+      ...prev,
+      [qid]: { scoring: true, userAnswer, replayCount },
+    }))
+    setError(null)
+
+    // Run confidence + Gemini scoring in the background — user can navigate freely.
+    ;(async () => {
       let textForScoring = userAnswer  // SR text as fallback
-      const qid = q.id
 
       if (audioBlob) {
         setConfidenceScores(prev => ({
@@ -103,34 +111,40 @@ export function useInterview() {
         }
       }
 
-      // Step 2: score using the Whisper transcript
-      const result = await scoreAnswer({
-        session_id:    sessionId,
-        question_id:   q.id,
-        question_text: q.question,
-        model_answer:  q.model_answer ?? null,
-        user_answer:   textForScoring,
-        category:      q.category,
-        difficulty:    q.difficulty,
-        has_answer:    q.has_answer,
-      })
+      try {
+        const result = await scoreAnswer({
+          session_id:    sessionId,
+          question_id:   qid,
+          question_text: q.question,
+          model_answer:  q.model_answer ?? null,
+          user_answer:   textForScoring,
+          category:      q.category,
+          difficulty:    q.difficulty,
+          has_answer:    q.has_answer,
+        })
 
-      setAnswers(prev => ({
-        ...prev,
-        [q.id]: {
-          userAnswer:    textForScoring,
-          modelAnswer:   q.model_answer ?? null,
-          overall:       result.overall,
-          is_behavioral: result.is_behavioral,
-          angles:        result.angles,
-          replayCount,
-        },
-      }))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+        setAnswers(prev => ({
+          ...prev,
+          [qid]: {
+            scoring:       false,
+            userAnswer:    textForScoring,
+            modelAnswer:   q.model_answer ?? null,
+            overall:       result.overall,
+            is_behavioral: result.is_behavioral,
+            angles:        result.angles,
+            replayCount,
+          },
+        }))
+      } catch (err) {
+        // Remove placeholder so the user can retry this question
+        setAnswers(prev => {
+          const next = { ...prev }
+          delete next[qid]
+          return next
+        })
+        setError(`Scoring failed: ${err.message}`)
+      }
+    })()
   }, [questions, currentIndex, sessionId])
 
   // ── 4. Navigate ───────────────────────────────────────────
@@ -170,17 +184,19 @@ export function useInterview() {
   }, [])
 
   // ── Derived ───────────────────────────────────────────────
-  const currentQuestion = questions[currentIndex] || null
-  const currentAnswer   = currentQuestion ? answers[currentQuestion.id] : null
-  const answeredCount   = Object.keys(answers).length
-  const allAnswered     = questions.length > 0 && answeredCount >= questions.length
-  const progress        = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0
+  const currentQuestion  = questions[currentIndex] || null
+  const currentAnswer    = currentQuestion ? answers[currentQuestion.id] : null
+  const answeredCount    = Object.keys(answers).length
+  const allAnswered      = questions.length > 0 && answeredCount >= questions.length
+  const progress         = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0
+  const hasPendingScores = Object.values(answers).some(a => a.scoring === true)
 
   return {
     step, loading, error,
     sessionId, profile, questions,
     currentIndex, currentQuestion, currentAnswer,
     answers, answeredCount, allAnswered, progress,
+    hasPendingScores,
     confidenceScores,
     report,
     handleUpload, startInterview, submitAnswer,
