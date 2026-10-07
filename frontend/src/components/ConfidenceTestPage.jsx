@@ -166,7 +166,7 @@ export default function ConfidenceTestPage() {
         {error && (
           <div style={{
             padding: '14px 18px', borderRadius: 'var(--radius-sm)',
-            background: 'var(--red-dim)', border: '1px solid rgba(248,113,113,0.25)',
+            background: 'var(--red-dim)', border: '1px solid rgba(251,113,133,0.25)',
             color: 'var(--red)', fontSize: '0.85rem',
           }}>
             {error}
@@ -195,7 +195,7 @@ export default function ConfidenceTestPage() {
                 fontSize: '1rem',
                 color: result.predicted_label === 'Confident' ? 'var(--green)' : 'var(--red)',
                 background: result.predicted_label === 'Confident' ? 'var(--green-dim)' : 'var(--red-dim)',
-                border: `1px solid ${result.predicted_label === 'Confident' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                border: `1px solid ${result.predicted_label === 'Confident' ? 'rgba(52,211,153,0.3)' : 'rgba(251,113,133,0.3)'}`,
                 padding: '4px 14px', borderRadius: 'var(--radius-pill)',
               }}>
                 {result.predicted_label}

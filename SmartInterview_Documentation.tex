@@ -181,7 +181,7 @@ The project was implemented in four phases: initial full-stack setup with RAG-ba
   \node[box, right=1.8cm of api] (whisper) {Faster-Whisper\\(ASR)};
   \node[box, below right=0.3cm and 1.8cm of api] (elevenlabs) {ElevenLabs\\(TTS)};
   % Internal modules
-  \node[greenbox, below=1.8cm of api] (rag) {RAG Engine\\(TF-IDF + FAISS)};
+  \node[greenbox, below=1.8cm of api] (rag) {RAG Engine\\(SBERT + FAISS)};
   \node[greenbox, left=1.2cm of rag] (parser) {Resume Parser\\(spaCy)};
   \node[greenbox, right=1.2cm of rag] (ml) {Ensemble ML\\(Confidence)};
 
@@ -208,7 +208,7 @@ SmartInterview/
 |   |-- main.py                # FastAPI server, routes, session store
 |   |-- gemini_client.py       # Gemini API wrapper (Q gen + scoring)
 |   |-- feature_extractor.py   # Audio feature extraction + ML prediction
-|   |-- embedding_engine.py    # TF-IDF vectorizer + FAISS index
+|   |-- embedding_engine.py    # SBERT vectorizer + FAISS index
 |   |-- resume_parser.py       # spaCy NER + regex resume parser
 |   |-- scorer.py              # Local cosine/keyword scorer (backup)
 |   |-- data_loader.py         # Question bank loader + indexer
@@ -283,9 +283,9 @@ The end-to-end flow for a single interview session is:
 & google-generativeai & Gemini API client (question generation + scoring) \\
 \midrule
 \multicolumn{3}{l}{\textit{Retrieval}} \\
-& scikit-learn TF-IDF & Text vectorization (8000 features, 1--2 ngrams) \\
+& sentence-transformers & SBERT embeddings (\texttt{all-MiniLM-L6-v2}, 384-dim, pre-trained) \\
 & FAISS (IndexFlatIP) & Fast approximate nearest-neighbor search \\
-& numpy & Vector math, L2 normalization \\
+& numpy & Vector math, cosine similarity \\
 \midrule
 \multicolumn{3}{l}{\textit{Audio \& Speech}} \\
 & faster-whisper & Whisper \texttt{medium.en} via CTranslate2; CUDA/CPU fallback \\
@@ -389,7 +389,7 @@ When no job description is provided, Gemini is called with a short prompt to inf
 
 \begin{enumerate}[leftmargin=2em]
   \item Filter categories with weight $\geq 0.3$ (or take the top 3 if all weights are below threshold).
-  \item For each selected category: embed the r\'esum\'e (first 3000 characters) and all questions in that category using the TF-IDF engine; rank by cosine similarity; take the top 2 questions.
+  \item For each selected category: embed the r\'esum\'e (first 3000 characters) and all questions in that category using the SBERT engine; rank by cosine similarity; take the top 2 questions.
   \item Collect up to 5 dataset questions total across categories.
 \end{enumerate}
 
@@ -410,7 +410,7 @@ The response is a JSON object with two arrays: \texttt{"dataset"} and \texttt{"p
 
 \subsubsection{Assembly and Deduplication}
 
-The three batches (5 personalized + 4 project + 3 HR = 12) are concatenated. A TF-IDF cosine deduplication step removes any question whose cosine similarity to an earlier question exceeds 0.70. Questions are re-indexed (\texttt{q1}--\texttt{q12}) and cached in the session.
+The three batches (5 personalized + 4 project + 3 HR = 12) are concatenated. An SBERT cosine deduplication step removes any question whose cosine similarity to an earlier question exceeds 0.70. Questions are re-indexed (\texttt{q1}--\texttt{q12}) and cached in the session.
 
 \begin{figure}[H]
 \centering
@@ -437,13 +437,15 @@ The three batches (5 personalized + 4 project + 3 HR = 12) are concatenated. A T
 
 \subsection{Embedding Engine (\texttt{embedding\_engine.py})}
 
-A TF-IDF vectorizer is fit on the full question bank at server startup:
+A Sentence-BERT (SBERT) model encodes all questions into dense semantic vectors at server startup:
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Vocabulary}: \texttt{max\_features=8000}, \texttt{ngram\_range=(1,2)}, English stop words removed.
-  \item \textbf{Weighting}: \texttt{sublinear\_tf=True} (log TF), \texttt{min\_df=2}, \texttt{max\_df=0.95}.
-  \item \textbf{Index}: FAISS \texttt{IndexFlatIP} over L2-normalized vectors (inner product = cosine for unit vectors).
+  \item \textbf{Model}: \texttt{all-MiniLM-L6-v2} (80\,MB, 384-dimensional output, pre-trained on 1B+ sentence pairs).
+  \item \textbf{Encoding}: \texttt{model.encode(texts, normalize\_embeddings=True)} produces L2-normalized float32 vectors directly; no vocabulary fitting required.
+  \item \textbf{Semantic matching}: Unlike TF-IDF, SBERT captures meaning rather than keyword overlap --- ``Python developer'' and ``I know Python'' produce similar vectors even with no shared tokens.
+  \item \textbf{Index}: FAISS \texttt{IndexFlatIP} over the L2-normalized vectors (inner product = cosine similarity for unit vectors).
   \item \textbf{Search}: \texttt{index.search(query\_vec, top\_k)} returns indices of nearest neighbors.
+  \item \textbf{Model download}: \texttt{all-MiniLM-L6-v2} is downloaded automatically on first startup and cached locally by the \texttt{sentence-transformers} library.
 \end{itemize}
 
 For smaller per-category corpora (typically 20--80 questions), a numpy dot-product rank is used instead of FAISS to avoid index rebuilding overhead.
@@ -943,7 +945,6 @@ The original research contribution is the self-recorded unconfident voice datase
 \subsection{Potential Future Work}
 
 \begin{itemize}[leftmargin=1.5em]
-  \item Replace TF-IDF embeddings with a sentence-transformer model (e.g., \texttt{all-MiniLM-L6-v2}) for more semantic retrieval.
   \item Collect a larger, more diverse confidence dataset or use a pre-trained speech emotion recognition model as a base.
   \item Add a PostgreSQL/Redis backend for session persistence and concurrent user support.
   \item Implement caching for Gemini responses keyed on (resume hash, role, JD hash) to reduce quota consumption across similar sessions.

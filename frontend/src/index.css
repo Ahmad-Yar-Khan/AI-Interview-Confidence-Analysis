@@ -1,83 +1,288 @@
-/* ─── Design System ─────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   SmartInterview Design System
+   Theme: Deep Navy · Soft Indigo · Glowing Rose
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Color tokens ───────────────────────────────────────── */
 :root {
-  --bg: #090b10;
-  --surface: #0f1219;
-  --surface2: #161b26;
-  --surface3: #1c2333;
-  --border: #242c3e;
-  --border2: #2e3a52;
+  /* Background layers — neutral charcoal stack, no blue */
+  --bg:       #0C0C0C;   /* page canvas */
+  --surface:  #161616;   /* cards, panels */
+  --surface2: #1E1E1E;   /* inputs, secondary surfaces */
+  --surface3: #262626;   /* highest elevation (dropdowns, tooltips) */
 
-  --accent: #4f8ef7;
-  --accent-dim: rgba(79, 142, 247, 0.12);
-  --accent2: #a78bfa;
-  --accent2-dim: rgba(167, 139, 250, 0.10);
+  /* Borders */
+  --border:  #2A2A2A;    /* card edges */
+  --border2: #3A3A3A;    /* input edges, dividers */
 
-  --green: #34d399;
-  --green-dim: rgba(52, 211, 153, 0.10);
-  --yellow: #fbbf24;
+  /* Primary — Emerald (AI / action) */
+  --accent:      #10B981;
+  --accent-dim:  rgba(16, 185, 129, 0.12);
+  --accent2:     #34D399;
+  --accent2-dim: rgba(52, 211, 153, 0.10);
+
+  /* Recording / Live — Glowing Rose */
+  --red:     #FB7185;
+  --red-dim: rgba(251, 113, 133, 0.10);
+
+  /* Semantic colors */
+  --green:      #34D399;
+  --green-dim:  rgba(52, 211, 153, 0.10);
+  --yellow:     #FBBF24;
   --yellow-dim: rgba(251, 191, 36, 0.10);
-  --red: #f87171;
-  --red-dim: rgba(248, 113, 113, 0.10);
-  --pink: #f472b6;
-  --orange: #fb923c;
+  --pink:       #F472B6;
+  --orange:     #FB923C;
 
-  --text: #e4eaf8;
-  --text2: #9aa5c0;
-  --muted: #5c6a88;
+  /* Typography */
+  --text:  #F8FAFC;   /* primary — near-white for contrast */
+  --text2: #94A3B8;   /* secondary — slate */
+  --muted: #64748B;   /* placeholder, metadata */
 
-  --radius: 12px;
-  --radius-sm: 8px;
+  /* Geometry */
+  --radius:      12px;
+  --radius-sm:    8px;
   --radius-pill: 999px;
 
-  --font-sans: 'DM Sans', system-ui, sans-serif;
+  /* Fonts */
+  --font-sans:  'DM Sans', system-ui, sans-serif;
   --font-serif: 'DM Serif Display', Georgia, serif;
-  --font-mono: 'DM Mono', 'Fira Code', monospace;
+  --font-mono:  'DM Mono', 'Fira Code', monospace;
 
-  --shadow: 0 4px 24px rgba(0,0,0,0.35);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.25);
+  /* Shadows — used sparingly; borders are preferred */
+  --shadow:    0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 8px  rgba(0, 0, 0, 0.35);
+  --shadow-green: 0 4px 20px rgba(16, 185, 129, 0.25);
 }
+
 
 /* ─── Reset ─────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
+
+/* ─── Base / Typography ──────────────────────────────────── */
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.65;
+  letter-spacing: 0.01em;           /* light-on-dark needs slight tracking */
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
 
+/* Headings — slightly lighter weight for dark BG readability */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+/* Subheadings / labels */
+.label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+
+strong { font-weight: 600; color: var(--text); }
+
+p { color: var(--text2); }
+
+
 /* ─── Scrollbar ──────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-/* ─── Typography ─────────────────────────────────────────── */
-h1, h2, h3, h4 { font-family: var(--font-serif); font-weight: 400; line-height: 1.2; }
-code { font-family: var(--font-mono); font-size: 0.88em; }
 
-/* ─── Utility classes ────────────────────────────────────── */
-.fade-in { animation: fadeIn 0.4s ease forwards; }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* ─── Layout wrappers ────────────────────────────────────── */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
 }
 
-.slide-up { animation: slideUp 0.35s ease forwards; }
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* Full-page focus mode for interview — no distractions */
+.interview-room {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  /* Subtle radial glow at top — depth without noise */
+  background-image: radial-gradient(
+    ellipse 70% 40% at 50% 0%,
+    rgba(16, 185, 129, 0.04) 0%,
+    transparent 70%
+  );
 }
+
+/* Center column for all screen content */
+.screen-content {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+
+/* ─── Card ───────────────────────────────────────────────── */
+/*
+  Elevation via color difference — no box-shadows.
+  --bg (#0F172A) → --surface (#1E293B) gives natural depth.
+  Border sharpens the edge without glow.
+  Top edge is 1px brighter to simulate a subtle light source.
+*/
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top-color: var(--border2);   /* top highlight */
+  border-radius: var(--radius);
+  padding: 28px;
+}
+
+.card-sm {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top-color: var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+
+/* Question card — slightly elevated surface + indigo left rail */
+.question-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top-color: var(--border2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 28px;
+}
+
+
+/* ─── Chip ───────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-mono); font-size: 0.7rem;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border2);
+  white-space: nowrap;
+  color: var(--text2);
+}
+
+
+/* ─── Buttons ────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 22px;
+  border-radius: var(--radius-sm);
+  border: none; cursor: pointer;
+  font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.18s;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+
+/* Indigo primary */
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: #0ea271;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-green);
+}
+.btn-primary:active { transform: translateY(0); }
+
+/* Ghost — border-based, no fill */
+.btn-ghost {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border2);
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--border2);
+  background: var(--surface2);
+}
+
+/* Green confirm */
+.btn-green { background: var(--green); color: #0a1a10; font-weight: 700; }
+.btn-green:hover { background: #2bbd87; transform: translateY(-1px); }
+
+/* Danger */
+.btn-danger {
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid rgba(251, 113, 133, 0.25);
+}
+.btn-danger:hover { background: rgba(251, 113, 133, 0.2); }
+
+
+/* ─── Inputs ─────────────────────────────────────────────── */
+textarea, input[type="text"] {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
+}
+textarea::placeholder, input[type="text"]::placeholder { color: var(--muted); }
+textarea:focus, input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+
+/* ─── Progress bar ───────────────────────────────────────── */
+.progress-track {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: var(--radius-pill);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+/* ─── Difficulty badges ──────────────────────────────────── */
+.diff-badge {
+  font-family: var(--font-mono); font-size: 0.67rem;
+  padding: 2px 9px; border-radius: var(--radius-pill);
+  font-weight: 500; letter-spacing: 0.03em;
+}
+.diff-Easy   { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(52,  211, 153, 0.25); }
+.diff-Medium { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251, 191,  36, 0.25); }
+.diff-Hard   { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(251, 113, 133, 0.25); }
+
 
 /* ─── Spinner ────────────────────────────────────────────── */
 .spinner {
   width: 36px; height: 36px;
-  border: 3px solid var(--border2);
+  border: 3px solid var(--surface3);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
@@ -97,87 +302,138 @@ code { font-family: var(--font-mono); font-size: 0.88em; }
   40%           { opacity: 1;   transform: scale(1); }
 }
 
-/* ─── Buttons ────────────────────────────────────────────── */
-.btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 10px 22px;
+
+/* ─── Skeleton / Thinking loader ─────────────────────────── */
+/*
+  Used while the AI is generating questions.
+  The shimmer travels left-to-right across a dark gradient.
+*/
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton {
   border-radius: var(--radius-sm);
-  border: none; cursor: pointer;
-  font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600;
-  transition: all 0.18s;
-  text-decoration: none;
-}
-.btn:disabled { opacity: 0.42; cursor: not-allowed; pointer-events: none; }
-
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: #3b7de8; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,142,247,0.35); }
-
-.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
-.btn-ghost:hover { color: var(--text); border-color: var(--text2); }
-
-.btn-green { background: var(--green); color: #000; font-weight: 700; }
-.btn-green:hover { background: #2bbd87; transform: translateY(-1px); }
-
-.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
-.btn-danger:hover { background: rgba(248,113,113,0.2); }
-
-/* ─── Card ───────────────────────────────────────────────── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
+  background: linear-gradient(
+    90deg,
+    var(--surface)  0%,
+    var(--surface3) 40%,
+    var(--surface2) 60%,
+    var(--surface)  100%
+  );
+  background-size: 1200px 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
 }
 
-/* ─── Chip ───────────────────────────────────────────────── */
-.chip {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-mono); font-size: 0.7rem;
-  padding: 3px 10px; border-radius: var(--radius-pill);
-  border: 1px solid var(--border2);
-  white-space: nowrap;
+/* Preset skeleton block sizes */
+.skeleton-line   { height: 14px; margin-bottom: 10px; }
+.skeleton-line-sm { height: 10px; width: 55%; margin-bottom: 8px; }
+.skeleton-title  { height: 22px; width: 70%; margin-bottom: 16px; }
+.skeleton-block  { height: 80px; margin-bottom: 12px; }
+
+
+/* ─── Glowing mic — recording state ─────────────────────── */
+/*
+  Apply .mic-glow to the recording indicator dot/icon.
+  The rose glow pulses outward in two rings.
+*/
+@keyframes mic-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0   0   rgba(251, 113, 133, 0),
+      0 0 10px 2px rgba(251, 113, 133, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0   10px rgba(251, 113, 133, 0.12),
+      0 0 28px 6px rgba(251, 113, 133, 0.55);
+  }
 }
 
-/* ─── Progress bar ───────────────────────────────────────── */
-.progress-track {
-  height: 5px; background: var(--border); border-radius: var(--radius-pill); overflow: hidden;
-}
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent2));
-  border-radius: var(--radius-pill);
-  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+.mic-glow {
+  border-radius: 50%;
+  animation: mic-glow 1.6s ease-in-out infinite;
 }
 
-/* ─── Difficulty badges ──────────────────────────────────── */
-.diff-badge {
-  font-family: var(--font-mono); font-size: 0.68rem;
-  padding: 2px 9px; border-radius: var(--radius-pill);
+/* Waveform bar — shared base */
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50%       { transform: scaleY(1); }
 }
-.diff-Easy   { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(52,211,153,0.25); }
-.diff-Medium { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
-.diff-Hard   { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(248,113,113,0.25); }
 
-/* ─── Textarea ───────────────────────────────────────────── */
-textarea, input[type="text"] {
-  width: 100%;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  color: var(--text);
-  font-family: var(--font-sans); font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  resize: vertical;
+.waveform {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 40px;
 }
-textarea:focus, input[type="text"]:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79,142,247,0.12);
+.waveform-bar {
+  width: 4px;
+  border-radius: 2px;
+  animation: wave-bar var(--wave-speed, 0.75s) ease-in-out infinite;
 }
+/* Speaking — indigo */
+.waveform-speak .waveform-bar { background: var(--accent); }
+/* Recording — rose */
+.waveform-record .waveform-bar { background: var(--red); }
+
+
+/* ─── Fade / slide animations ────────────────────────────── */
+.fade-in {
+  animation: fadeIn 0.35s ease forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+  animation: slideUp 0.32s ease forwards;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pop — used for countdown number */
+@keyframes si-pop {
+  from { transform: scale(1.25); opacity: 0.4; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+/* Pulse — used for recording dot */
+@keyframes si-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(1.4); }
+}
+
+/* Wave — used for waveform bars */
+@keyframes si-wave {
+  0%, 100% { transform: scaleY(0.35); }
+  50%       { transform: scaleY(1); }
+}
+
+/* Loading bar shimmer */
+@keyframes ls-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@keyframes ls-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1); }
+}
+
+@keyframes ls-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
 
 /* ─── Responsive ─────────────────────────────────────────── */
 @media (max-width: 680px) {
-  .card { padding: 20px; }
-  .btn  { padding: 9px 16px; }
+  .card, .question-card { padding: 20px; }
+  .btn { padding: 9px 16px; }
+  .screen-content { padding: 20px 16px; }
 }

@@ -1,58 +1,46 @@
 """
 embedding_engine.py
 -------------------
-Builds TF-IDF embeddings for resume text and all questions.
+Builds SBERT embeddings for resume text and all questions.
 Stores question vectors in a FAISS index for fast cosine similarity search.
 Supports any resume — no hardcoding.
 """
 
 import logging
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import normalize
+from sentence_transformers import SentenceTransformer
 import faiss
 
 logger = logging.getLogger(__name__)
 
+_MODEL_NAME = "all-MiniLM-L6-v2"
+
 
 class EmbeddingEngine:
     """
-    Wraps TF-IDF vectorization + FAISS flat index for cosine search.
+    Wraps SBERT vectorization + FAISS flat index for cosine search.
 
     Usage:
         engine = EmbeddingEngine()
-        engine.fit(corpus_texts)          # build vocabulary on question corpus
+        engine.fit(corpus_texts)          # loads model, no-op for training
         q_vecs = engine.embed_batch(texts)
         engine.build_index(q_vecs)        # store in FAISS
         results = engine.search(resume_vec, top_k=20)
     """
 
-    def __init__(self, max_features: int = 8000, ngram_range: tuple = (1, 2)):
-        self.vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            ngram_range=ngram_range,
-            sublinear_tf=True,           # log(1+tf) dampening
-            min_df=2,                    # ignore very rare terms
-            max_df=0.95,                 # ignore too-common terms
-            stop_words="english",
-        )
+    def __init__(self, model_name: str = _MODEL_NAME):
+        self.model = SentenceTransformer(model_name)
+        self.dim: int = self.model.get_sentence_embedding_dimension()
         self.index: faiss.IndexFlatIP | None = None
-        self.dim: int = 0
         self._fitted = False
 
     # ──────────────────────────────────────────
-    # FIT
+    # FIT  (no-op for SBERT — model is pre-trained)
     # ──────────────────────────────────────────
 
-    def fit(self, corpus: list[str]) -> None:
-        """
-        Fit the TF-IDF vocabulary on the question corpus.
-        Call once at startup after loading the question dataset.
-        """
-        self.vectorizer.fit(corpus)
-        self.dim = len(self.vectorizer.get_feature_names_out())
+    def fit(self, corpus: list[str]) -> None:  # noqa: ARG002  kept for API compatibility
         self._fitted = True
-        logger.info(f"EmbeddingEngine fitted. Vocabulary size: {self.dim}")
+        logger.info(f"EmbeddingEngine ready. Model: {_MODEL_NAME}, dim={self.dim}")
 
     # ──────────────────────────────────────────
     # EMBED
@@ -62,21 +50,15 @@ class EmbeddingEngine:
         """
         Embed a single text → L2-normalized float32 vector of shape (dim,).
         """
-        if not self._fitted:
-            raise RuntimeError("Call engine.fit(corpus) before embedding.")
-        vec = self.vectorizer.transform([text])
-        dense = vec.toarray().astype(np.float32)
-        normed = normalize(dense, norm="l2")
-        return normed[0]
+        vec = self.model.encode([text], convert_to_numpy=True, normalize_embeddings=True)
+        return vec[0].astype(np.float32)
 
     def embed_batch(self, texts: list[str]) -> np.ndarray:
         """
         Embed a list of texts → shape (N, dim).
         """
-        if not self._fitted:
-            raise RuntimeError("Call engine.fit(corpus) before embedding.")
-        mat = self.vectorizer.transform(texts).toarray().astype(np.float32)
-        return normalize(mat, norm="l2")
+        vecs = self.model.encode(texts, convert_to_numpy=True, normalize_embeddings=True, batch_size=64, show_progress_bar=False)
+        return vecs.astype(np.float32)
 
     # ──────────────────────────────────────────
     # FAISS INDEX
@@ -88,7 +70,7 @@ class EmbeddingEngine:
         vectors: shape (N, dim)
         """
         dim = vectors.shape[1]
-        self.index = faiss.IndexFlatIP(dim)   # Inner Product
+        self.index = faiss.IndexFlatIP(dim)
         self.index.add(vectors)
         logger.info(f"FAISS index built with {self.index.ntotal} vectors, dim={dim}")
 
@@ -120,6 +102,6 @@ class EmbeddingEngine:
         Uses numpy dot product — suitable for small N (resume chunks, not the full bank).
         Returns indices sorted by descending similarity.
         """
-        scores  = corpus_vecs @ query_vec
-        top_k   = min(top_k, len(scores))
+        scores = corpus_vecs @ query_vec
+        top_k  = min(top_k, len(scores))
         return list(np.argsort(scores)[::-1][:top_k])

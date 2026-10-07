@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 const DIFFICULTY_COLOR = {
   Easy:   { color: '#34d399', background: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.25)'  },
   Medium: { color: '#fbbf24', background: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.25)'  },
-  Hard:   { color: '#f87171', background: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.25)' },
+  Hard:   { color: '#FB7185', background: 'rgba(251,113,133,0.12)', border: 'rgba(251,113,133,0.25)' },
 }
 
 function Badge({ label, color, background, border }) {

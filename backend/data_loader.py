@@ -2,7 +2,7 @@
 data_loader.py
 --------------
 Loads the unified master_questions.csv (output of preprocess_datasets.py).
-Builds TF-IDF embeddings and a FAISS index for all questions.
+Builds SBERT embeddings and a FAISS index for all questions.
 
 Handles NULL answers (HR & Behavioral category) gracefully —
 these questions are included in selection but scored differently.

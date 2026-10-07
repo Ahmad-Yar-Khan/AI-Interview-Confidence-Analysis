@@ -244,8 +244,8 @@ export default function ReportScreen({ report, confidenceScores = {}, onRetake, 
                     {isBehav && <span style={{ color: 'var(--muted)' }}>· Effort Score</span>}
                     {conf?.status === 'done' && (
                       <span style={{
-                        background: conf.label === 'Confident' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.10)',
-                        border: `1px solid ${conf.label === 'Confident' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                        background: conf.label === 'Confident' ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.10)',
+                        border: `1px solid ${conf.label === 'Confident' ? 'rgba(52,211,153,0.3)' : 'rgba(251,113,133,0.3)'}`,
                         color: conf.label === 'Confident' ? 'var(--green)' : 'var(--red)',
                         borderRadius: 'var(--radius-pill)',
                         padding: '1px 7px', fontSize: '0.62rem', fontFamily: 'var(--font-mono)',

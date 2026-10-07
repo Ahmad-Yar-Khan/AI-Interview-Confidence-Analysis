@@ -59,7 +59,7 @@ try:
         ResumeProfile,
         extract_name, extract_title, extract_skills,
         extract_experience, extract_education, extract_projects,
-        get_chunks, compute_category_weights,
+        get_chunks,
     )
     _rag_imports_ok = True
 except Exception as _re:
@@ -209,49 +209,49 @@ def _normalize_dataset_question(q, id_prefix: str = "ds") -> dict:
 
 def _retrieve_dataset_questions(resume_text: str, count: int = 5) -> list[dict]:
     """
-    Category-scoped retrieval: compute which dataset categories are relevant to
-    this resume, then rank questions within each relevant category by cosine
-    similarity to the resume. Avoids pulling in questions from unrelated domains
-    (e.g. Kubernetes when the resume has no cloud experience).
+    Global SBERT retrieval: embed resume, search FAISS across all tech questions,
+    cap per-category to 2 for diversity, return top `count` results.
     """
     if not _rag_ready or not _rag_imports_ok:
         return []
     try:
-        profile  = _build_profile(resume_text)
-        weights  = compute_category_weights(profile)
-
-        # Keep categories with meaningful signal; exclude HR (handled separately)
-        relevant = [
-            cat for cat, w in sorted(weights.items(), key=lambda x: -x[1])
-            if cat != "HR & Behavioral" and w >= 0.3
-        ]
-        # Always have at least the top-3 categories even if weights are low
-        if not relevant:
-            relevant = [
-                cat for cat, _ in sorted(weights.items(), key=lambda x: -x[1])
-                if cat != "HR & Behavioral"
-            ][:3]
-
         resume_vec = _rag_engine.embed(resume_text[:3000])
-        selected: list[dict] = []
+        search_k   = min(len(_rag_bank.questions), count * 10)
+        _, indices = _rag_engine.search(resume_vec, top_k=search_k)
 
-        for cat in relevant:
+        MAX_PER_CAT = 2
+        cat_counts: dict[str, int] = {}
+        selected: list[dict] = []
+        seen: set[str] = set()
+
+        for idx in indices:
             if len(selected) >= count:
                 break
-            cat_qs = [q for q in _rag_bank.get_by_category(cat) if q.vector is not None]
-            if not cat_qs:
+            q = _rag_bank.questions[idx]
+            if q.category == "HR & Behavioral":
                 continue
+            if q.question in seen:
+                continue
+            if cat_counts.get(q.category, 0) >= MAX_PER_CAT:
+                continue
+            selected.append(_normalize_dataset_question(q, id_prefix="ds"))
+            seen.add(q.question)
+            cat_counts[q.category] = cat_counts.get(q.category, 0) + 1
 
-            cat_vecs  = np.vstack([q.vector for q in cat_qs])
-            top_idxs  = _rag_engine.rank_chunks(resume_vec, cat_vecs, top_k=2)
-            remaining = count - len(selected)
-
-            for idx in top_idxs[:remaining]:
-                selected.append(_normalize_dataset_question(cat_qs[idx], id_prefix="ds"))
+        # Backfill: relax cap if short
+        if len(selected) < count:
+            for idx in indices:
+                if len(selected) >= count:
+                    break
+                q = _rag_bank.questions[idx]
+                if q.category == "HR & Behavioral" or q.question in seen:
+                    continue
+                selected.append(_normalize_dataset_question(q, id_prefix="ds"))
+                seen.add(q.question)
 
         logger.info(
-            f"Category-scoped retrieval: {len(selected)} questions "
-            f"from categories {[c for c in relevant if _rag_bank.get_by_category(c)]}"
+            f"Global SBERT retrieval: {len(selected)} questions "
+            f"from categories {list(dict.fromkeys(q['category'] for q in selected))}"
         )
         return selected
     except Exception as e:
@@ -287,7 +287,7 @@ def _extract_projects_section(resume_text: str) -> str:
 
 def _dedup_questions(questions: list[dict], sim_threshold: float = 0.70) -> list[dict]:
     """
-    Remove duplicate questions using TF-IDF cosine similarity when the RAG engine
+    Remove duplicate questions using SBERT cosine similarity when the RAG engine
     is available, falling back to string-prefix matching otherwise.
     Two questions are considered duplicates when their cosine similarity exceeds
     sim_threshold — the later one (lower priority source) is dropped.
