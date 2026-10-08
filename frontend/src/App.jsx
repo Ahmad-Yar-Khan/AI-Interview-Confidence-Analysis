@@ -8,13 +8,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useInterview } from "./hooks/useInterview";
 
-import UploadScreen from "./components/UploadScreen";
+import UploadScreen from "./screens/UploadScreen";
 import ProfileStrip from "./components/ProfileStrip";
-import ReadyScreen from "./components/ReadyScreen";
-import InterviewScreen from "./components/InterviewScreen";
-import ReportScreen from "./components/ReportScreen";
-import ConfidenceTestPage from "./components/ConfidenceTestPage";
-import QuestionsPage from "./components/QuestionsPage";
+import ReadyScreen from "./screens/ReadyScreen";
+import InterviewScreen from "./screens/InterviewScreen";
+import ReportScreen from "./screens/ReportScreen";
+import ConfidenceTestPage from "./screens/ConfidenceTestPage";
+import QuestionsPage from "./screens/QuestionsPage";
 
 // ── Loading screen quotes ─────────────────────────────────
 const QUESTION_QUOTES = [

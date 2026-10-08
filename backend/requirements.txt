@@ -1,5 +1,7 @@
 # Smart Interview — Backend Dependencies
 # Install: pip install -r requirements.txt
+# Then also run (spaCy's model isn't a pip package, it's a separate download):
+#   python -m spacy download en_core_web_sm
 
 # API
 fastapi
@@ -11,9 +13,14 @@ pydantic
 pypdf
 python-docx
 pdfplumber
+spacy
 
 # Groq
 groq
+
+# RAG: embeddings + vector search (resume_parser, embedding_engine, data_loader)
+sentence-transformers
+faiss-cpu
 
 # Confidence analysis
 faster-whisper
@@ -28,3 +35,6 @@ xgboost
 python-dotenv
 aiofiles
 httpx
+
+# Dev / testing
+pytest

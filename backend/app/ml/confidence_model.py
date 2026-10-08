@@ -28,16 +28,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 import xgboost as xgb
 
+from app.core.config import settings
+
 # --- Configuration --- #
-# Override via env vars: MODEL_PATH, FEATURES_LIST_PATH
-MODEL_PATH = os.getenv(
-    'CONFIDENCE_MODEL_PATH',
-    os.path.join(os.path.dirname(__file__), 'models', 'ensemble_confidence_model.joblib')
-)
-FEATURES_LIST_PATH = os.getenv(
-    'CONFIDENCE_FEATURES_PATH',
-    os.path.join(os.path.dirname(__file__), 'models', 'features_list.joblib')
-)
+# Resolved centrally in app/core/config.py (relative to BACKEND_ROOT, not this
+# file's own directory — this module moved from backend/feature_extractor.py
+# to backend/app/ml/confidence_model.py during the restructure, so a path
+# computed from __file__ here would no longer point at backend/models/).
+MODEL_PATH = settings.CONFIDENCE_MODEL_PATH
+FEATURES_LIST_PATH = settings.CONFIDENCE_FEATURES_PATH
 
 # --- Helper Functions (copied from Colab notebook) --- #
 

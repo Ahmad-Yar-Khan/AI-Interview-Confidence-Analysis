@@ -9,7 +9,7 @@ import { useState, useCallback } from 'react'
 import {
   uploadResume, fetchQuestions, scoreAnswer, fetchReport, deleteSession,
   submitConfidence as submitConfidenceApi,
-} from '../utils/api'
+} from '../api/client'
 
 export function useInterview() {
   const [step,             setStep]             = useState('upload')

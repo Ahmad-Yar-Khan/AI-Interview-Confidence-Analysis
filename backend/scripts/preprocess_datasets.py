@@ -32,7 +32,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
-DATA_DIR    = os.path.join(os.path.dirname(__file__), "data")
+DATA_DIR    = os.path.join(os.path.dirname(__file__), "..", "data")
 OUTPUT_PATH = os.path.join(DATA_DIR, "master_questions.csv")
 
 CANONICAL_COLS = ["id", "category", "question", "answer", "difficulty", "source"]

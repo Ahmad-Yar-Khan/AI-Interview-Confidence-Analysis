@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react'
-import { CAT_META } from './ProfileStrip'
+import { CAT_META } from '../components/ProfileStrip'
 
 function getScoreColor(score) {
   if (score >= 75) return 'var(--green)'

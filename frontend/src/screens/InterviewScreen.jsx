@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { CAT_META } from "./ProfileStrip";
+import { CAT_META } from "../components/ProfileStrip";
 
 export default function InterviewScreen({
   questions,

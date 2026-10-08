@@ -20,7 +20,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "master_questions.csv")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "master_questions.csv")
 THRESHOLD  = 0.85
 
 

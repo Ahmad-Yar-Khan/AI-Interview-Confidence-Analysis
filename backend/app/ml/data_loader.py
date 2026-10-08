@@ -14,11 +14,12 @@ import pandas as pd
 import numpy as np
 from dataclasses import dataclass, field
 
-from embedding_engine import EmbeddingEngine
+from app.ml.embedding_engine import EmbeddingEngine
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-DATA_PATH = os.getenv("DATA_PATH", "data/master_questions.csv")
+DATA_PATH = settings.DATA_PATH
 
 # ════════════════════════════════════════
 # ALL CANONICAL CATEGORIES
@@ -75,7 +76,7 @@ class QuestionBank:
         if not os.path.exists(csv_path):
             raise FileNotFoundError(
                 f"Master dataset not found at '{csv_path}'.\n"
-                "Run: python preprocess_datasets.py"
+                "Run: python scripts/preprocess_datasets.py"
             )
 
         df = pd.read_csv(csv_path)
