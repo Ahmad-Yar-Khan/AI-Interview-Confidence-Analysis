@@ -4,6 +4,7 @@ resume.py (route)
 POST /api/upload-resume — Upload PDF/DOCX/TXT → session.
 """
 
+import asyncio
 import logging
 import os
 import uuid
@@ -35,7 +36,9 @@ async def upload_resume(file: UploadFile = File(...)):
         raise HTTPException(413, "File too large. Max 10 MB.")
 
     try:
-        resume_text = extract_text(contents, file.filename)
+        # pdfplumber/python-docx are synchronous — run in a thread so parsing
+        # a PDF doesn't block the event loop.
+        resume_text = await asyncio.to_thread(extract_text, contents, file.filename)
     except Exception as e:
         logger.exception("Text extraction failed")
         raise HTTPException(500, f"Failed to read resume: {str(e)}")

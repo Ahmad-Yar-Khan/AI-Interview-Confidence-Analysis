@@ -15,7 +15,7 @@ from app.llm.prompts import SCORE_PROMPT
 logger = logging.getLogger(__name__)
 
 
-def score_answer(
+async def score_answer(
     question: str,
     model_answer: str | None,
     user_answer: str,
@@ -35,7 +35,7 @@ def score_answer(
         user_answer=user_answer,
     )
 
-    result = parse_json(chat(prompt))
+    result = parse_json(await chat(prompt))
 
     result.setdefault("overall", 0)
     result.setdefault("is_behavioral", is_behavioral_hint == "true")

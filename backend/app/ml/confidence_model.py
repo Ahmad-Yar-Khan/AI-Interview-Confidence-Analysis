@@ -140,28 +140,38 @@ def predict_confidence_score(
 
 # --- Main Prediction Function for VS Code --- #
 
-# Lazily loaded on first use
+# Loaded once per process — in the API this is the confidence worker process,
+# which calls load_models() from its initializer (see
+# app/services/confidence_service.py). The getters still lazy-load as a
+# fallback so this module also works standalone (tests, __main__ below).
 _WHISPER_MODEL = None
+_ENSEMBLE_MODEL = None
+_FEATURE_NAMES = None
 
 def _get_whisper_model():
     global _WHISPER_MODEL
     if _WHISPER_MODEL is None:
-        # Upgraded from Whisper small to Faster-Whisper medium.en for:
-        # - significantly improved transcription accuracy
-        # - better handling of technical vocabulary (ML, APIs, system design terms)
-        # - improved robustness for interview-style conversational speech
-        # - lower latency inference compared to original Whisper implementation
-        print("Loading Faster-Whisper medium.en model...")
-        for device, compute_type in [("cuda", "float16"), ("cuda", "int8"), ("cpu", "int8")]:
-            try:
-                _WHISPER_MODEL = WhisperModel("medium.en", device=device, compute_type=compute_type)
-                print(f"Faster-Whisper loaded: device={device}, compute_type={compute_type}")
-                break
-            except Exception as e:
-                print(f"  [{device}/{compute_type}] failed: {e} — trying fallback...")
-        if _WHISPER_MODEL is None:
-            raise RuntimeError("Failed to initialize Faster-Whisper on any device/compute_type.")
+        # CPU-only on purpose: the deployment targets (and dev machines) have
+        # no NVIDIA GPU, so there is no CUDA path to try. int8 keeps RAM and
+        # latency down. The model size comes from WHISPER_MODEL (default small.en).
+        model_name = settings.WHISPER_MODEL
+        print(f"Loading Faster-Whisper {model_name} model (cpu, int8)...")
+        _WHISPER_MODEL = WhisperModel(model_name, device="cpu", compute_type="int8")
+        print("Faster-Whisper loaded: device=cpu, compute_type=int8")
     return _WHISPER_MODEL
+
+def _get_ensemble_model():
+    """Load the ensemble classifier + feature list once (previously re-loaded from disk on every prediction)."""
+    global _ENSEMBLE_MODEL, _FEATURE_NAMES
+    if _ENSEMBLE_MODEL is None or _FEATURE_NAMES is None:
+        _ENSEMBLE_MODEL = joblib.load(MODEL_PATH)
+        _FEATURE_NAMES = joblib.load(FEATURES_LIST_PATH)
+    return _ENSEMBLE_MODEL, _FEATURE_NAMES
+
+def load_models():
+    """Eagerly load Whisper and the ensemble model. Raises if either fails."""
+    _get_whisper_model()
+    _get_ensemble_model()
 
 def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
     """
@@ -207,12 +217,9 @@ def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
         for k, v in extracted_features.items():
             print(f"  {k}: {v:.2f}" if isinstance(v, float) else f"  {k}: {v}")
 
-        # Step 4: Load the model and feature names
-        # These are loaded here to make the function self-contained
-        # but in a real application, you might load them once at startup.
+        # Step 4: Get the (already loaded) model and feature names
         try:
-            ensemble_model = joblib.load(MODEL_PATH)
-            feature_names = joblib.load(FEATURES_LIST_PATH)
+            ensemble_model, feature_names = _get_ensemble_model()
         except FileNotFoundError:
             print(f"Error: Model or feature list not found. Ensure '{MODEL_PATH}' and '{FEATURES_LIST_PATH}' exist.")
             return {}

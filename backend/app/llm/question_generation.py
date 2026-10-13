@@ -32,9 +32,9 @@ logger = logging.getLogger(__name__)
 
 # ── Category Inference ───────────────────────────────────────
 
-def infer_categories(resume_text: str) -> list[str]:
+async def infer_categories(resume_text: str) -> list[str]:
     prompt = CATEGORY_PROMPT.format(resume_text=resume_text)
-    cats   = parse_json(chat(prompt))
+    cats   = parse_json(await chat(prompt))
     if not isinstance(cats, list):
         raise ValueError("Expected a JSON array of category strings")
     cats = [str(c).strip() for c in cats if str(c).strip()]
@@ -44,7 +44,7 @@ def infer_categories(resume_text: str) -> list[str]:
 
 # ── Question Generation ───────────────────────────────────────
 
-def generate_questions(
+async def generate_questions(
     resume_text: str,
     total: int = 12,
     job_context: str = "",
@@ -74,7 +74,7 @@ def generate_questions(
             resume_text=resume_text,
         )
 
-    questions = parse_json(chat(prompt))
+    questions = parse_json(await chat(prompt))
 
     for i, q in enumerate(questions):
         q.setdefault("id", f"q{i+1}")
@@ -87,7 +87,7 @@ def generate_questions(
 
 # ── Dataset Question Personalization ─────────────────────────
 
-def personalize_dataset_questions(questions: list[dict], resume_text: str) -> list[dict]:
+async def personalize_dataset_questions(questions: list[dict], resume_text: str) -> list[dict]:
     if not questions:
         return questions
 
@@ -103,7 +103,7 @@ def personalize_dataset_questions(questions: list[dict], resume_text: str) -> li
         questions_json=questions_json,
         resume_text=resume_text[:3000],
     )
-    rewritten = parse_json(chat(prompt))
+    rewritten = parse_json(await chat(prompt))
 
     id_map = {q["id"]: q for q in questions}
     result = []
@@ -119,7 +119,7 @@ def personalize_dataset_questions(questions: list[dict], resume_text: str) -> li
 
 # ── Combined: Personalize dataset questions + generate project questions ──────
 
-def generate_dataset_and_project_questions(
+async def generate_dataset_and_project_questions(
     dataset_qs: list[dict],
     projects_text: str,
     resume_text: str,
@@ -139,7 +139,7 @@ def generate_dataset_and_project_questions(
         resume_text=resume_text[:3000],
         projects_text=projects_text,
     )
-    result = parse_json(chat(prompt))
+    result = parse_json(await chat(prompt))
 
     out_dataset = result.get("dataset", [])
     out_project = result.get("project", [])
@@ -165,7 +165,7 @@ def generate_dataset_and_project_questions(
 
 # ── Project Question Generation ───────────────────────────────
 
-def generate_project_questions(
+async def generate_project_questions(
     projects_text: str,
     count: int = 4,
     already_covered: list[str] | None = None,
@@ -184,7 +184,7 @@ def generate_project_questions(
         projects_text=projects_text,
         avoid_section=avoid_section,
     )
-    questions = parse_json(chat(prompt))
+    questions = parse_json(await chat(prompt))
 
     for i, q in enumerate(questions):
         q.setdefault("id", f"p{i+1}")

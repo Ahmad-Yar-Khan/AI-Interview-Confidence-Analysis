@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 @router.get("/api/questions/{session_id}")
-def get_questions(session_id: str, total: int = 12, role: str = "", jd: str = ""):
+async def get_questions(session_id: str, total: int = 12, role: str = "", jd: str = ""):
     """
     Assemble interview questions from three sources:
       - 5 technical questions retrieved from the dataset via FAISS (resume-matched)
@@ -31,7 +31,7 @@ def get_questions(session_id: str, total: int = 12, role: str = "", jd: str = ""
         raise HTTPException(404, "Session not found. Upload a resume first.")
 
     try:
-        questions = question_service.get_or_generate_questions(
+        questions = await question_service.get_or_generate_questions(
             session, total=total, role=role, jd=jd
         )
     except Exception as e:

@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.post("/api/score", response_model=ScoreResponse)
-def score_answer_route(payload: AnswerPayload):
+async def score_answer_route(payload: AnswerPayload):
     session = session_store.get(payload.session_id)
     if session is None:
         raise HTTPException(404, "Session not found.")
@@ -27,7 +27,7 @@ def score_answer_route(payload: AnswerPayload):
     model_text = None if not payload.has_answer else payload.model_answer
 
     try:
-        result = score_answer(
+        result = await score_answer(
             question=payload.question_text,
             model_answer=model_text,
             user_answer=payload.user_answer,

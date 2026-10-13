@@ -15,6 +15,7 @@ from the app's lifespan startup, and `rag_status()` is what the /api/health
 route reads.
 """
 
+import asyncio
 import random
 import logging
 
@@ -200,7 +201,7 @@ def get_debug_chunks(resume_text: str) -> dict:
 # ORCHESTRATION — assembles the final question set for a session
 # ════════════════════════════════════════
 
-def get_or_generate_questions(session: dict, total: int = 12, role: str = "", jd: str = "") -> list[dict]:
+async def get_or_generate_questions(session: dict, total: int = 12, role: str = "", jd: str = "") -> list[dict]:
     """
     Assemble interview questions from three sources:
       - 5 technical questions retrieved from the dataset via FAISS (resume-matched)
@@ -211,6 +212,12 @@ def get_or_generate_questions(session: dict, total: int = 12, role: str = "", jd
     Mutates `session` in place (questions / job_role / job_description / debug
     fields), same as the original main.py route body did directly on the
     `sessions[session_id]` dict.
+
+    Concurrency: the CPU-bound steps (SBERT embedding + FAISS search, spaCy
+    chunking, SBERT dedup) run in worker threads via asyncio.to_thread so they
+    never block the event loop; the Groq calls are awaited directly. Dataset
+    retrieval and project-section extraction don't depend on each other, so
+    they run concurrently.
     """
     # Local import to avoid a circular import at module load time
     # (app.llm -> ... -> nothing that imports this module, but kept local
@@ -231,12 +238,14 @@ def get_or_generate_questions(session: dict, total: int = 12, role: str = "", jd
 
     # ── Sources 1 & 2: personalized dataset + project questions ──
     # Single Groq call handles both tasks to halve quota usage.
-    raw_dataset_qs = _retrieve_dataset_questions(resume_text, count=5)
-    projects_text  = _extract_projects_section(resume_text)
+    raw_dataset_qs, projects_text = await asyncio.gather(
+        asyncio.to_thread(_retrieve_dataset_questions, resume_text, 5),
+        asyncio.to_thread(_extract_projects_section, resume_text),
+    )
     dataset_qs: list[dict] = []
     project_qs: list[dict] = []
     try:
-        dataset_qs, project_qs = generate_dataset_and_project_questions(
+        dataset_qs, project_qs = await generate_dataset_and_project_questions(
             dataset_qs=raw_dataset_qs,
             projects_text=projects_text,
             resume_text=resume_text,
@@ -250,12 +259,12 @@ def get_or_generate_questions(session: dict, total: int = 12, role: str = "", jd
     hr_qs = _get_hr_questions(count=3)
 
     # ── Combine, deduplicate, re-index ────────────────────────
-    questions = _dedup_questions(dataset_qs + project_qs + hr_qs)
+    questions = await asyncio.to_thread(_dedup_questions, dataset_qs + project_qs + hr_qs)
 
     # Full LLM fallback if every source returned nothing
     if not questions:
         logger.warning("All sources empty — falling back to full LLM generation.")
-        questions = generate_questions(resume_text=resume_text, total=total)
+        questions = await generate_questions(resume_text=resume_text, total=total)
 
     for i, q in enumerate(questions):
         q["id"] = f"q{i+1}"
@@ -267,7 +276,7 @@ def get_or_generate_questions(session: dict, total: int = 12, role: str = "", jd
     )
 
     # Store for debug endpoint
-    session["debug_chunks"]    = get_debug_chunks(resume_text)
+    session["debug_chunks"]    = await asyncio.to_thread(get_debug_chunks, resume_text)
     session["debug_retrieval"] = {"dataset": dataset_qs, "project": project_qs, "hr": hr_qs}
     session["questions"] = questions
 

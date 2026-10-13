@@ -32,7 +32,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.services import question_service
+from app.services import question_service, confidence_service
 from app.api.routes import health, resume, questions, scoring, report, confidence, tts
 
 logging.basicConfig(level=logging.INFO)
@@ -48,9 +48,13 @@ async def lifespan(app: FastAPI):
     logger.info("Smart Interview API starting...")
     if not settings.GROQ_API_KEY:
         logger.warning("GROQ_API_KEY is not set — question generation will fail.")
+    # Starts the worker process(es) and begins loading Whisper in the
+    # background — doesn't block startup.
+    confidence_service.start()
     question_service.init_rag()
     yield
     logger.info("Shutting down.")
+    confidence_service.stop()
 
 
 # ════════════════════════════════════════

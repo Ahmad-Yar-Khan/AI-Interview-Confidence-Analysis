@@ -10,17 +10,19 @@ misleading about what this module does.
 import re
 import json
 
-from groq import Groq
+from groq import AsyncGroq
 
 from app.core.config import settings
 
-_client = Groq(api_key=settings.GROQ_API_KEY)
+# Async client: awaiting a Groq response yields the event loop instead of
+# holding a thread-pool thread for the 2-10 s the LLM takes to answer.
+_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 _MODEL_NAME = settings.GROQ_MODEL
 
 
-def chat(prompt: str) -> str:
+async def chat(prompt: str) -> str:
     """Send a single user-turn prompt and return the raw text response."""
-    response = _client.chat.completions.create(
+    response = await _client.chat.completions.create(
         model=_MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,

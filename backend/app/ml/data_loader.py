@@ -9,6 +9,8 @@ these questions are included in selection but scored differently.
 """
 
 import os
+import json
+import hashlib
 import logging
 import pandas as pd
 import numpy as np
@@ -20,6 +22,10 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 DATA_PATH = settings.DATA_PATH
+EMBEDDING_CACHE_DIR = settings.EMBEDDING_CACHE_DIR
+
+_VECTORS_FILE = "question_vectors.npy"
+_META_FILE    = "question_vectors.meta.json"
 
 # ════════════════════════════════════════
 # ALL CANONICAL CATEGORIES
@@ -129,11 +135,14 @@ class QuestionBank:
             null_count = sum(1 for q in qs if not q.has_answer)
             logger.info(f"  {cat:<35} {len(qs):>4} qs  ({null_count} without answers)")
 
-    def build_embeddings(self, engine: EmbeddingEngine) -> None:
+    def build_embeddings(self, engine: EmbeddingEngine, cache_dir: str = EMBEDDING_CACHE_DIR) -> None:
         self.engine = engine
         corpus = [q.combined_text for q in self.questions]
         engine.fit(corpus)
-        vectors = engine.embed_batch(corpus)
+        vectors = _load_cached_vectors(cache_dir, corpus, engine)
+        if vectors is None:
+            vectors = engine.embed_batch(corpus)
+            _save_cached_vectors(cache_dir, corpus, engine, vectors)
         for i, q in enumerate(self.questions):
             q.vector = vectors[i]
         engine.build_index(vectors)
@@ -150,6 +159,58 @@ class QuestionBank:
 
     def get_categories(self) -> list[str]:
         return [c for c, qs in self._by_category.items() if qs]
+
+
+# ════════════════════════════════════════
+# EMBEDDING CACHE
+# ════════════════════════════════════════
+# The question bank only changes when preprocess_datasets.py is re-run, so its
+# embeddings are computed once and saved to disk. The cache key is a hash of
+# the exact corpus text + model name: if either changes, the key no longer
+# matches and the vectors are rebuilt automatically.
+
+def _cache_key(corpus: list[str], engine: EmbeddingEngine) -> str:
+    h = hashlib.sha256()
+    h.update(engine.model_name.encode("utf-8"))
+    for text in corpus:
+        h.update(b"\x00")
+        h.update(text.encode("utf-8"))
+    return h.hexdigest()
+
+
+def _load_cached_vectors(cache_dir: str, corpus: list[str], engine: EmbeddingEngine) -> np.ndarray | None:
+    vectors_path = os.path.join(cache_dir, _VECTORS_FILE)
+    meta_path    = os.path.join(cache_dir, _META_FILE)
+    if not (os.path.exists(vectors_path) and os.path.exists(meta_path)):
+        logger.info("No embedding cache found — embedding the question bank.")
+        return None
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        if meta.get("key") != _cache_key(corpus, engine):
+            logger.info("Embedding cache is stale (dataset or model changed) — re-embedding.")
+            return None
+        vectors = np.load(vectors_path)
+        if vectors.shape != (len(corpus), engine.dim):
+            logger.info("Embedding cache has unexpected shape — re-embedding.")
+            return None
+        logger.info(f"Loaded {len(corpus)} cached question embeddings from {cache_dir}")
+        return vectors.astype(np.float32)
+    except Exception as e:
+        logger.warning(f"Could not read embedding cache ({e}) — re-embedding.")
+        return None
+
+
+def _save_cached_vectors(cache_dir: str, corpus: list[str], engine: EmbeddingEngine, vectors: np.ndarray) -> None:
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        np.save(os.path.join(cache_dir, _VECTORS_FILE), vectors)
+        with open(os.path.join(cache_dir, _META_FILE), "w", encoding="utf-8") as f:
+            json.dump({"key": _cache_key(corpus, engine), "model": engine.model_name, "count": len(corpus)}, f)
+        logger.info(f"Saved question embeddings cache to {cache_dir}")
+    except Exception as e:
+        # A failed cache write only costs a re-embed on next startup.
+        logger.warning(f"Could not write embedding cache: {e}")
 
 
 _question_bank: QuestionBank | None = None

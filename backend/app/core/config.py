@@ -38,6 +38,13 @@ class Settings:
 
     # --- RAG / question bank ---
     DATA_PATH: str = os.getenv("DATA_PATH", "data/master_questions.csv")
+    # Question-bank embeddings are computed once and cached here (keyed by a
+    # hash of the CSV + model name), so startup doesn't re-embed the whole
+    # dataset every boot. Delete the directory to force a rebuild.
+    EMBEDDING_CACHE_DIR: str = os.getenv(
+        "EMBEDDING_CACHE_DIR",
+        str(BACKEND_ROOT / "faiss_index"),
+    )
 
     # --- Confidence model (paths are now resolved from BACKEND_ROOT since this
     #     file, and the module that uses it, no longer live at backend/ root) ---
@@ -49,6 +56,13 @@ class Settings:
         "CONFIDENCE_FEATURES_PATH",
         str(BACKEND_ROOT / "models" / "features_list.joblib"),
     )
+    # Confidence prediction (Whisper + ensemble) runs in separate worker
+    # processes so it never blocks the API's event loop. Each worker holds its
+    # own copy of the Whisper model in RAM (~1-2 GB for medium.en), so keep
+    # this small. small.en (~1 GB) is the default; set WHISPER_MODEL=medium.en
+    # for better accuracy on hosts with the RAM for it.
+    CONFIDENCE_WORKERS: int = int(os.getenv("CONFIDENCE_WORKERS", "1"))
+    WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "small.en")
 
     # --- ElevenLabs TTS ---
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
