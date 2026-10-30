@@ -1,22 +1,23 @@
 """
 confidence_service.py
 ----------------------
-Runs confidence prediction (ffmpeg -> Faster-Whisper -> feature extraction ->
+Runs confidence prediction (ffmpeg -> Groq transcription -> feature extraction ->
 ensemble classifier) in a separate worker process instead of inside the API
 process.
 
-Why a process and not a thread: the prediction is seconds of CPU-heavy work.
-Run inline in an `async def` route it froze the event loop, so every other
-request (including /api/tts for the next question) waited for Whisper to
-finish. In a worker process it can't block the event loop or compete for the
-API process's GIL; the route just awaits a future.
+Why a process and not a thread: the prediction includes CPU-heavy feature
+extraction and ensemble inference. Run inline in an `async def` route it froze
+the event loop, so every other request (including /api/tts for the next
+question) waited for it to finish. In a worker process it can't block the event
+loop or compete for the API process's GIL; the route just awaits a future.
 
 Lifecycle (driven from main.py's lifespan):
-  start()  — creates the pool; each worker loads Whisper + the ensemble model
-             ONCE in its initializer. A warm-up task is submitted so the
-             models load at startup rather than on the first user request.
-             Startup does not wait for it — the API is usable immediately,
-             and early requests simply queue until the worker is ready.
+  start()  — creates the pool; each worker initializes the Groq client and
+             loads the ensemble model ONCE in its initializer. A warm-up task is
+             submitted so the model loads at startup rather than on the first
+             user request. Startup does not wait for it — the API is usable
+             immediately, and early requests simply queue until the worker is
+             ready.
   predict()— awaitable; ships the audio file path to a worker, returns the
              prediction dict ({} on prediction failure, same as before).
   stop()   — shuts the pool down.
@@ -46,7 +47,7 @@ _error: str | None = None
 
 def _init_worker() -> None:
     # Imported here, not at module top, so the API process never loads
-    # faster-whisper / sklearn / xgboost — only the workers do.
+    # sklearn / xgboost — only the workers do.
     from app.ml.confidence_model import load_models
     load_models()
 
@@ -70,7 +71,7 @@ def _on_warmup_done(fut: Future) -> None:
     if exc is None:
         if _status != "failed":
             _status = "ready"
-            logger.info("Confidence worker ready (Whisper + ensemble model loaded).")
+            logger.info("Confidence worker ready (ensemble model loaded; Groq transcription configured).")
     else:
         _status = "failed"
         _error = str(exc) or type(exc).__name__
@@ -86,7 +87,7 @@ def start() -> None:
     # one warm-up task per worker gets all of them loading at startup.
     for _ in range(workers):
         _pool.submit(_warmup).add_done_callback(_on_warmup_done)
-    logger.info(f"Confidence worker pool starting ({workers} process(es), model={settings.WHISPER_MODEL}).")
+    logger.info(f"Confidence worker pool starting ({workers} process(es), transcription={settings.GROQ_TRANSCRIBE_MODEL}).")
 
 
 def stop() -> None:

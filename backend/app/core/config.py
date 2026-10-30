@@ -76,13 +76,14 @@ class Settings:
         "CONFIDENCE_FEATURES_PATH",
         str(BACKEND_ROOT / "models" / "features_list.joblib"),
     )
-    # Confidence prediction (Whisper + ensemble) runs in separate worker
-    # processes so it never blocks the API's event loop. Each worker holds its
-    # own copy of the Whisper model in RAM (~1-2 GB for medium.en), so keep
-    # this small. small.en (~1 GB) is the default; set WHISPER_MODEL=medium.en
-    # for better accuracy on hosts with the RAM for it.
+    # Confidence prediction runs in separate worker processes so it never
+    # blocks the API's event loop. Transcription is delegated to Groq's hosted
+    # Whisper API, so each worker only loads the small ensemble model — no
+    # local Whisper weights are needed.
     CONFIDENCE_WORKERS: int = int(os.getenv("CONFIDENCE_WORKERS", "1"))
-    WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "small.en")
+    GROQ_TRANSCRIBE_MODEL: str = os.getenv(
+        "GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo"
+    )
 
     # --- ElevenLabs TTS ---
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")

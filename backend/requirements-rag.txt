@@ -1,0 +1,9 @@
+# Optional RAG dependencies.
+# The live question flow uses Groq directly and does not load FAISS/SBERT, so
+# these are not part of the production install. Use this file only when you
+# re-enable dataset retrieval / resume embeddings.
+
+-r requirements.txt
+
+sentence-transformers
+faiss-cpu

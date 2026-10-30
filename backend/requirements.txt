@@ -18,12 +18,10 @@ spacy
 # Groq
 groq
 
-# RAG: embeddings + vector search (resume_parser, embedding_engine, data_loader)
-sentence-transformers
-faiss-cpu
+# RAG (optional): embeddings + vector search are no longer used by the live
+# question flow. Install backend/requirements-rag.txt only if you re-enable it.
 
-# Confidence analysis
-faster-whisper
+# Confidence analysis (transcription is handled by the Groq API)
 pydub
 scikit-learn==1.6.1
 numpy

@@ -3,8 +3,8 @@
 import os
 import pandas as pd
 import numpy as np
+from groq import Groq
 import joblib
-from faster_whisper import WhisperModel
 import tempfile
 import shutil
 from pydub import AudioSegment
@@ -144,21 +144,19 @@ def predict_confidence_score(
 # which calls load_models() from its initializer (see
 # app/services/confidence_service.py). The getters still lazy-load as a
 # fallback so this module also works standalone (tests, __main__ below).
-_WHISPER_MODEL = None
+_GROQ_CLIENT = None
 _ENSEMBLE_MODEL = None
 _FEATURE_NAMES = None
 
-def _get_whisper_model():
-    global _WHISPER_MODEL
-    if _WHISPER_MODEL is None:
-        # CPU-only on purpose: the deployment targets (and dev machines) have
-        # no NVIDIA GPU, so there is no CUDA path to try. int8 keeps RAM and
-        # latency down. The model size comes from WHISPER_MODEL (default small.en).
-        model_name = settings.WHISPER_MODEL
-        print(f"Loading Faster-Whisper {model_name} model (cpu, int8)...")
-        _WHISPER_MODEL = WhisperModel(model_name, device="cpu", compute_type="int8")
-        print("Faster-Whisper loaded: device=cpu, compute_type=int8")
-    return _WHISPER_MODEL
+def _get_groq_client():
+    global _GROQ_CLIENT
+    if _GROQ_CLIENT is None:
+        # Transcription is hosted by Groq, so no local Whisper weights are
+        # loaded. The client is reused for every request in this process.
+        if not settings.GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY is not set; transcription requires it.")
+        _GROQ_CLIENT = Groq(api_key=settings.GROQ_API_KEY, timeout=60.0)
+    return _GROQ_CLIENT
 
 def _get_ensemble_model():
     """Load the ensemble classifier + feature list once (previously re-loaded from disk on every prediction)."""
@@ -169,14 +167,14 @@ def _get_ensemble_model():
     return _ENSEMBLE_MODEL, _FEATURE_NAMES
 
 def load_models():
-    """Eagerly load Whisper and the ensemble model. Raises if either fails."""
-    _get_whisper_model()
+    """Eagerly load the ensemble model and initialize the Groq client."""
+    _get_groq_client()
     _get_ensemble_model()
 
 def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
     """
     Predicts confidence scores for a given audio file (m4a, mp3, or wav) using
-    Whisper for transcription and the loaded ensemble model.
+    Groq-hosted Whisper for transcription and the loaded ensemble model.
 
     Args:
         audio_file_path (str): The path to the audio file (m4a, mp3, or wav).
@@ -199,11 +197,16 @@ def predict_confidence_for_audio_vscode(audio_file_path: str) -> dict:
         audio.export(temp_wav_path, format="wav")
         audio_duration_seconds = len(audio) / 1000.0
 
-        # Step 2: Transcribe with Faster-Whisper
-        print("Transcribing audio with Faster-Whisper...")
-        segments_gen, _ = _get_whisper_model().transcribe(temp_wav_path, beam_size=5)
-        segments = [{"start": seg.start, "end": seg.end, "text": seg.text.strip()} for seg in segments_gen]
-        transcription = " ".join(seg["text"] for seg in segments)
+        # Step 2: Transcribe with Groq's hosted Whisper API
+        print(f"Transcribing audio with Groq ({settings.GROQ_TRANSCRIBE_MODEL})...")
+        client = _get_groq_client()
+        with open(temp_wav_path, "rb") as audio_file:
+            result = client.audio.transcriptions.create(
+                file=("audio.wav", audio_file),
+                model=settings.GROQ_TRANSCRIBE_MODEL,
+            )
+        transcription = result if isinstance(result, str) else result.text
+        transcription = (transcription or "").strip()
         print(f"Transcription: \"{transcription}\"")
 
         # Step 3: Extract features

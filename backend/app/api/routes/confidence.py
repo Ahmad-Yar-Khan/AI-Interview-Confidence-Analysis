@@ -4,10 +4,10 @@ confidence.py (route)
 POST /api/confidence — audio -> predicted_label, confidence_probability,
 confidence_score_1_to_10, transcript.
 
-The prediction itself (Whisper transcription + ensemble model) runs in a
-separate worker process via app.services.confidence_service — this route only
-saves the upload to a temp file and awaits the worker's result, so the event
-loop stays free to serve other requests while Whisper runs.
+The prediction itself (Groq transcription + ensemble model) runs in a separate
+worker process via app.services.confidence_service — this route only saves the
+upload to a temp file and awaits the worker's result, so the event loop stays
+free to serve other requests.
 """
 
 import logging

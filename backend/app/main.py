@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     logger.info("Smart Interview API starting...")
     if not settings.GROQ_API_KEY:
         logger.warning("GROQ_API_KEY is not set — question generation will fail.")
-    # Starts the worker process(es) and begins loading Whisper in the
+    # Starts the worker process(es) and begins loading the ensemble model in the
     # background — doesn't block startup.
     confidence_service.start()
     # Dataset RAG (FAISS/SBERT) is no longer used for questions, so it isn't loaded.
