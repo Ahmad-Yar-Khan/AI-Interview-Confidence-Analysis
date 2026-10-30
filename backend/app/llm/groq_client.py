@@ -2,9 +2,8 @@
 groq_client.py
 --------------
 Low-level "talk to Groq" wrapper — the part that would change if the LLM
-provider were ever swapped. Renamed from gemini_client.py, which hasn't
-actually talked to Gemini since the Groq migration; the old name was actively
-misleading about what this module does.
+provider were ever swapped. It was renamed from the old provider-specific
+module name, which had been misleading since the Groq migration.
 """
 
 import re
@@ -20,12 +19,16 @@ _client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 _MODEL_NAME = settings.GROQ_MODEL
 
 
-async def chat(prompt: str) -> str:
-    """Send a single user-turn prompt and return the raw text response."""
+async def chat(prompt: str, *, system: str | None = None, temperature: float = 0.7) -> str:
+    """Send a single user-turn prompt (optionally with a system message) and return the raw text response."""
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
     response = await _client.chat.completions.create(
         model=_MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
+        messages=messages,
+        temperature=temperature,
     )
     return response.choices[0].message.content
 

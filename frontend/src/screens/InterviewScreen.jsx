@@ -358,6 +358,17 @@ export default function InterviewScreen({
               {catMeta.label}
             </span>
             <span className={`diff-badge diff-${q.difficulty}`}>{q.difficulty}</span>
+            {q.is_followup && (
+              <span style={{
+                fontFamily: "var(--font-mono)", fontSize: "0.65rem",
+                padding: "2px 9px", borderRadius: "var(--radius-pill)",
+                background: "var(--accent-dim, rgba(232,168,56,0.10))",
+                border: "1px solid var(--accent, #E8A838)",
+                color: "var(--accent, #E8A838)",
+              }}>
+                Follow-up
+              </span>
+            )}
             {isHR && (
               <span style={{
                 fontFamily: "var(--font-mono)", fontSize: "0.65rem",

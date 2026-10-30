@@ -27,3 +27,10 @@ class ScoreResponse(BaseModel):
     angles: dict
     model_answer: str | None
     feedback: str = ""
+    # True when the score is weak enough that POST /api/followup will produce a follow-up.
+    followup_eligible: bool = False
+
+
+class FollowupRequest(BaseModel):
+    session_id: str
+    question_id: str

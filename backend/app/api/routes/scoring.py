@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.schemas.answer import AnswerPayload, ScoreResponse
 from app.llm import score_answer
+from app.services import followup_service
 from app.services.session_store import session_store
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,14 @@ async def score_answer_route(payload: AnswerPayload):
         )
     except Exception as e:
         logger.exception("Scoring failed")
-        raise HTTPException(500, f"Gemini scoring failed: {str(e)}")
+        raise HTTPException(500, f"Groq scoring failed: {str(e)}")
+
+    question = next((q for q in session["questions"] if q.get("id") == payload.question_id), {})
 
     answer_record = {
         "question_id":  payload.question_id,
+        "is_followup":  bool(question.get("is_followup")),
+        "parent_id":    question.get("parent_id"),
         "question":     payload.question_text,
         "category":     payload.category,
         "difficulty":   payload.difficulty,
@@ -63,6 +68,7 @@ async def score_answer_route(payload: AnswerPayload):
         session["answers"].append(answer_record)
 
     return ScoreResponse(
+        followup_eligible=followup_service.would_follow_up(session, answer_record),
         question_id=payload.question_id,
         overall=result["overall"],
         is_behavioral=result["is_behavioral"],

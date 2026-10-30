@@ -12,6 +12,7 @@ import uuid
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.text_extractor import extract_text
+from app.llm.validation import strip_injection_lines
 from app.services.resume_service import looks_like_resume, guess_name
 from app.services.session_store import session_store
 
@@ -53,6 +54,12 @@ async def upload_resume(file: UploadFile = File(...)):
             "Please upload a resume containing sections like Experience, Education, or Skills.",
         )
 
+    # Lines that try to instruct the interviewer model are removed before the text
+    # is stored, so they can neither reach a prompt nor be quoted as "evidence".
+    resume_text, removed = strip_injection_lines(resume_text)
+    if removed:
+        logger.warning(f"Removed {len(removed)} instruction-like line(s) from uploaded resume: {removed}")
+
     session_id = str(uuid.uuid4())
     session_store.create(session_id, {
         "resume_text": resume_text,
@@ -70,4 +77,7 @@ async def upload_resume(file: UploadFile = File(...)):
             "filename": file.filename,
             "char_count": len(resume_text),
         },
+        "warnings": (
+            [f"Removed {len(removed)} line(s) that looked like instructions to the AI."] if removed else []
+        ),
     }

@@ -2,13 +2,14 @@
  * ReadyScreen.jsx
  * ---------------
  * Configure screen shown after resume upload.
- * Displays a parsed-success banner, then optionally expands
- * role/JD customization before starting the interview.
+ * Displays a parsed-success banner, then asks for the target job title
+ * (grouped dropdown + "Other") and years of experience before starting.
  *
  * Styled to match UploadScreen — DM Serif Display + Inter, amber accent, navy base.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { fetchRoles } from "../api/client";
 
 // ─── Inject shared token system (no-op if UploadScreen already injected it) ──
 const READY_CSS = `
@@ -167,12 +168,28 @@ function ReadyStyles() {
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function ReadyScreen({ profile, onStart, loading, error }) {
   const [role, setRole] = useState("");
-  const [jd, setJd] = useState("");
-  const [showCustomize, setShowCustomize] = useState(false);
+  const [years, setYears] = useState("");
+  const [roleOptions, setRoleOptions] = useState(null);
+  const [rolesFailed, setRolesFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRoles()
+      .then((data) => !cancelled && setRoleOptions(data))
+      .catch(() => !cancelled && setRolesFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!profile) return null;
 
-  const hasContext = role.trim() || jd.trim();
+  const yearsNum = years === "" ? null : Number(years);
+  const yearsValid =
+    yearsNum !== null && Number.isInteger(yearsNum) && yearsNum >= 0 && yearsNum <= 50;
+  // If the role list can't load, the user can still proceed via "Other".
+  const effectiveRole = rolesFailed && !role ? "other" : role;
+  const canStart = !!effectiveRole && yearsValid && !loading;
   const wordCount = profile.char_count
     ? Math.round(profile.char_count / 5).toLocaleString()
     : null;
@@ -289,165 +306,79 @@ export default function ReadyScreen({ profile, onStart, loading, error }) {
                 lineHeight: 1.7,
               }}
             >
-              Start now, or target a specific role below to get questions built
-              around that position.
+              Tell us the role you're interviewing for and how much experience
+              you have, so the questions are pitched at the right level.
             </p>
           </div>
 
-          {/* ── Customize accordion ── */}
-          <div className="rs-card rs-fade-2" style={{ marginBottom: 24 }}>
-            <button
-              className={`rs-toggle${showCustomize ? " rs-toggle-open" : ""}`}
-              onClick={() => setShowCustomize((v) => !v)}
-              aria-expanded={showCustomize}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                Target a specific role
-                {hasContext && (
-                  <span
-                    style={{
-                      fontSize: "0.66rem",
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--amber)",
-                      background: "var(--amber-dim)",
-                      border: "1px solid var(--border-accent)",
-                      borderRadius: "var(--radius-pill)",
-                      padding: "2px 8px",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
-                    added
-                  </span>
-                )}
-              </span>
-              <span
-                style={{
-                  color: "var(--text3)",
-                  fontSize: "0.75rem",
-                  display: "inline-block",
-                  transform: showCustomize ? "rotate(180deg)" : "none",
-                  transition: "transform 0.2s ease",
-                }}
-              >
-                ▾
-              </span>
-            </button>
-
-            {showCustomize && (
-              <div style={{ padding: "20px 20px 22px" }}>
-                {/* Role input */}
-                <label style={{ display: "block", marginBottom: 14 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: 8,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        fontSize: "0.83rem",
-                        color: "var(--text1)",
-                      }}
-                    >
-                      Job title
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        fontFamily: "var(--font-mono)",
-                        color: "var(--text3)",
-                      }}
-                    >
-                      optional
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    className="rs-input"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    placeholder="e.g. Senior Backend Engineer at Google"
-                    maxLength={120}
-                  />
-                </label>
-
-                {/* JD textarea */}
-                <label style={{ display: "block" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: 8,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        fontSize: "0.83rem",
-                        color: "var(--text1)",
-                      }}
-                    >
-                      Job description
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        fontFamily: "var(--font-mono)",
-                        color: "var(--text3)",
-                      }}
-                    >
-                      optional
-                    </span>
-                  </div>
-                  <textarea
-                    className="rs-input"
-                    value={jd}
-                    onChange={(e) => setJd(e.target.value)}
-                    placeholder="Paste the job description here — your questions will be tailored to it."
-                    rows={6}
-                    maxLength={4000}
-                  />
-                  {jd.length > 3500 && (
-                    <div
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "var(--text3)",
-                        fontFamily: "var(--font-mono)",
-                        marginTop: 5,
-                        textAlign: "right",
-                      }}
-                    >
-                      {jd.length} / 4000
-                    </div>
-                  )}
-                </label>
-
-                {hasContext && (
-                  <div
-                    style={{
-                      marginTop: 16,
-                      background: "var(--amber-dim)",
-                      border: "1px solid var(--border-accent)",
-                      borderRadius: "var(--radius-sm)",
-                      padding: "11px 14px",
-                      fontSize: "0.78rem",
-                      color: "var(--text2)",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    <span style={{ color: "var(--amber)", fontWeight: 600 }}>
-                      Role context set —{" "}
-                    </span>
-                    your questions will be tailored to this position and your
-                    experience.
-                  </div>
-                )}
+          {/* ── Role + experience ── */}
+          <div className="rs-card rs-fade-2" style={{ marginBottom: 24, padding: "20px 20px 22px" }}>
+            {/* Job title */}
+            <label style={{ display: "block", marginBottom: 18 }}>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: "0.83rem", color: "var(--text1)" }}>
+                  Job title
+                </span>
               </div>
-            )}
+              <select
+                className="rs-input"
+                style={{ colorScheme: "dark" }}
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={!roleOptions && !rolesFailed}
+              >
+                <option value="" disabled>
+                  {roleOptions || rolesFailed ? "Select the role you're applying for" : "Loading roles…"}
+                </option>
+                {roleOptions?.categories.map((group) => (
+                  <optgroup key={group.category} label={group.category}>
+                    {group.roles.map((r) => (
+                      <option key={r.slug} value={r.slug}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                <option value={roleOptions?.other.slug ?? "other"}>
+                  {roleOptions?.other.name ?? "Other (not listed)"}
+                </option>
+              </select>
+              {effectiveRole === "other" && (
+                <div style={{ fontSize: "0.74rem", color: "var(--text3)", marginTop: 6, lineHeight: 1.5 }}>
+                  No job title will be used — questions will come from your resume and experience level only.
+                </div>
+              )}
+              {rolesFailed && (
+                <div style={{ fontSize: "0.74rem", color: "var(--text3)", marginTop: 6 }}>
+                  Couldn't load the role list, so "Other" is being used.
+                </div>
+              )}
+            </label>
+
+            {/* Years of experience */}
+            <label style={{ display: "block" }}>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: "0.83rem", color: "var(--text1)" }}>
+                  Years of experience
+                </span>
+              </div>
+              <input
+                type="number"
+                className="rs-input"
+                value={years}
+                onChange={(e) => setYears(e.target.value)}
+                placeholder="e.g. 3 (enter 0 if you're a fresher)"
+                min={0}
+                max={50}
+                step={1}
+                inputMode="numeric"
+              />
+              {years !== "" && !yearsValid && (
+                <div style={{ fontSize: "0.74rem", color: "var(--red)", marginTop: 6 }}>
+                  Enter a whole number between 0 and 50.
+                </div>
+              )}
+            </label>
           </div>
 
           {/* ── Error ── */}
@@ -483,16 +414,14 @@ export default function ReadyScreen({ profile, onStart, loading, error }) {
           >
             <button
               className="rs-btn rs-btn-primary"
-              onClick={() => onStart(role, jd)}
-              disabled={loading}
+              onClick={() => onStart(effectiveRole, yearsNum)}
+              disabled={!canStart}
             >
               {loading ? (
                 <>
                   <span className="rs-spinner" />
                   Generating questions…
                 </>
-              ) : hasContext ? (
-                "Start interview →"
               ) : (
                 "Start interview →"
               )}

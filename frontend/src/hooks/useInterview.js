@@ -2,14 +2,20 @@
  * useInterview.js
  * ---------------
  * Central state hook. Manages: upload → parse → select → interview → report.
- * Handles both technical questions (has_answer=true) and HR behavioral (has_answer=false).
+ * The interview starts with a handful of generated questions; a weak score can
+ * add a follow-up, which is slotted in a little after the user's current position.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
-  uploadResume, fetchQuestions, scoreAnswer, fetchReport, deleteSession,
+  uploadResume, fetchQuestions, scoreAnswer, requestFollowup, fetchReport, deleteSession,
   submitConfidence as submitConfidenceApi,
 } from '../api/client'
+
+// A follow-up is placed this many slots (at most) beyond the earliest allowed
+// position, chosen at random — the score arrives late, so the user has often
+// already moved on and the follow-up lands after a question or two.
+const FOLLOWUP_MAX_DELAY = 2
 
 export function useInterview() {
   const [step,             setStep]             = useState('upload')
@@ -24,6 +30,11 @@ export function useInterview() {
   // confidenceScores: { [questionId]: { status, label, probability, score } }
   const [confidenceScores, setConfidenceScores] = useState({})
   const [report,           setReport]           = useState(null)
+  // Number of weak answers whose follow-up request is still in flight.
+  const [followupsPending, setFollowupsPending] = useState(0)
+  // Latest index, readable from async callbacks that outlive a render.
+  const currentIndexRef = useRef(0)
+  currentIndexRef.current = currentIndex
 
   const clearError = () => setError(null)
 
@@ -47,11 +58,11 @@ export function useInterview() {
   }, [])
 
   // ── 2. Start Interview ───────────────────────────────────
-  const startInterview = useCallback(async (role = '', jd = '') => {
+  const startInterview = useCallback(async (role = 'other', years = null) => {
     if (!sessionId) return
     setLoading(true); setError(null)
     try {
-      const qResult = await fetchQuestions(sessionId, 12, role, jd)
+      const qResult = await fetchQuestions(sessionId, 5, role, years)
       setQuestions(qResult.questions)
       setCurrentIndex(0)
       setAnswers({})
@@ -64,6 +75,33 @@ export function useInterview() {
       setLoading(false)
     }
   }, [sessionId])
+
+  // ── Follow-ups ───────────────────────────────────────────
+  // Insert after the parent AND after wherever the user is now, never behind
+  // them; within the next few slots, picked at random.
+  const insertFollowup = useCallback((followup) => {
+    const roll = Math.random()   // outside the updater so it stays pure
+    setQuestions(prev => {
+      if (prev.some(x => x.id === followup.id)) return prev
+      const parentIdx = prev.findIndex(x => x.id === followup.parent_id)
+      const earliest  = Math.max(currentIndexRef.current, parentIdx) + 1
+      const latest    = Math.min(prev.length, earliest + FOLLOWUP_MAX_DELAY)
+      const at        = earliest + Math.floor(roll * (latest - earliest + 1))
+      return [...prev.slice(0, at), followup, ...prev.slice(at)]
+    })
+  }, [])
+
+  const maybeRequestFollowup = useCallback(async (qid) => {
+    setFollowupsPending(n => n + 1)
+    try {
+      const { followup } = await requestFollowup(sessionId, qid)
+      if (followup) insertFollowup(followup)
+    } catch {
+      // A missing follow-up must never break the interview — just carry on.
+    } finally {
+      setFollowupsPending(n => n - 1)
+    }
+  }, [sessionId, insertFollowup])
 
   // ── 3. Submit Answer ─────────────────────────────────────
   const submitAnswer = useCallback((userAnswer, replayCount = 0, audioBlob = null) => {
@@ -80,7 +118,7 @@ export function useInterview() {
     }))
     setError(null)
 
-    // Run confidence + Gemini scoring in the background — user can navigate freely.
+    // Run confidence + Groq scoring in the background — user can navigate freely.
     ;(async () => {
       let textForScoring = userAnswer  // SR text as fallback
 
@@ -135,6 +173,8 @@ export function useInterview() {
             replayCount,
           },
         }))
+        // Weak answer -> ask the backend for a follow-up (runs without blocking the user).
+        if (result.followup_eligible) maybeRequestFollowup(qid)
       } catch (err) {
         // Remove placeholder so the user can retry this question
         setAnswers(prev => {
@@ -145,7 +185,7 @@ export function useInterview() {
         setError(`Scoring failed: ${err.message}`)
       }
     })()
-  }, [questions, currentIndex, sessionId])
+  }, [questions, currentIndex, sessionId, maybeRequestFollowup])
 
   // ── 4. Navigate ───────────────────────────────────────────
   const goNext = useCallback(() => {
@@ -180,6 +220,7 @@ export function useInterview() {
 
   // ── 7. Retake ─────────────────────────────────────────────
   const retake = useCallback(() => {
+    setQuestions(qs => qs.filter(q => !q.is_followup))
     setAnswers({}); setConfidenceScores({}); setCurrentIndex(0); setReport(null); setStep('interview')
   }, [])
 
@@ -189,7 +230,9 @@ export function useInterview() {
   const answeredCount    = Object.keys(answers).length
   const allAnswered      = questions.length > 0 && answeredCount >= questions.length
   const progress         = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0
-  const hasPendingScores = Object.values(answers).some(a => a.scoring === true)
+  // Counts follow-ups still being requested too: the report must wait for them,
+  // otherwise "View Report" could appear just before a follow-up is added.
+  const hasPendingScores = followupsPending > 0 || Object.values(answers).some(a => a.scoring === true)
 
   return {
     step, loading, error,

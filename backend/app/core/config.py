@@ -2,14 +2,14 @@
 config.py
 ---------
 Centralizes every environment variable the app reads. Before this file existed,
-os.getenv() calls were scattered across main.py, gemini_client.py, and
+os.getenv() calls were scattered across main.py, groq_client.py, and
 feature_extractor.py — there was no single place to see what the app needs to
 run.
 
-GEMINI_API_KEY has been removed entirely (not just renamed): it was a leftover
-check from before this app migrated from Gemini to Groq, and it checked the
-wrong variable — the startup warning and /api/health's "gemini_key_set" field
-both used to read GEMINI_API_KEY while the actual Groq client only ever reads
+The old provider-specific API key has been removed entirely (not just renamed):
+it was a leftover check from before this app migrated to Groq, and it checked
+the wrong variable — the startup warning and /api/health's key-status field both
+used to read that old key while the actual Groq client only ever reads
 GROQ_API_KEY, so a missing GROQ_API_KEY could go unnoticed (and vice versa, a
 false warning could fire for a perfectly working setup). Both call sites now
 read GROQ_API_KEY directly.
@@ -32,6 +32,26 @@ class Settings:
     # Groq's current openly-accessible model closest to that capability class.
     # Override via GROQ_MODEL in .env if you get access to something else.
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+    # --- Role briefs (weekly Tavily research per dropdown job title) ---
+    # Without a key the scheduler stays off and questions are generated from the
+    # resume alone — the interview never blocks on search.
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+    ROLE_BRIEF_DB_PATH: str = os.getenv(
+        "ROLE_BRIEF_DB_PATH",
+        str(BACKEND_ROOT / "data" / "role_briefs.db"),
+    )
+    # A brief older than this is no longer served. The scheduler refreshes at 6/7
+    # of the TTL so a healthy brief never lapses between refreshes.
+    ROLE_BRIEF_TTL_DAYS: int = int(os.getenv("ROLE_BRIEF_TTL_DAYS", "7"))
+    ROLE_BRIEF_SCHEDULER: bool = os.getenv("ROLE_BRIEF_SCHEDULER", "1") not in ("0", "false", "False")
+
+    # --- Follow-up questions ---
+    # An answer whose Groq score ("overall", 0-100) is below the threshold triggers
+    # a follow-up. Depth 2 means base question -> follow-up -> one more follow-up.
+    FOLLOWUP_SCORE_THRESHOLD: int = int(os.getenv("FOLLOWUP_SCORE_THRESHOLD", "60"))
+    FOLLOWUP_MAX_DEPTH: int = int(os.getenv("FOLLOWUP_MAX_DEPTH", "2"))
+    FOLLOWUP_MAX_TOTAL: int = int(os.getenv("FOLLOWUP_MAX_TOTAL", "7"))
 
     # --- CORS ---
     CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")

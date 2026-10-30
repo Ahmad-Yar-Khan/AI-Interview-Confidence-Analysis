@@ -11,7 +11,8 @@ from app.llm.question_generation import (
     infer_categories,
     generate_questions,
     personalize_dataset_questions,
-    generate_dataset_and_project_questions,
+    generate_interview_questions,
+    generate_followup,
     generate_project_questions,
 )
 from app.llm.answer_scoring import score_answer
@@ -20,7 +21,8 @@ __all__ = [
     "infer_categories",
     "generate_questions",
     "personalize_dataset_questions",
-    "generate_dataset_and_project_questions",
+    "generate_interview_questions",
+    "generate_followup",
     "generate_project_questions",
     "score_answer",
 ]
