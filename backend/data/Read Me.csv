@@ -1,0 +1,11 @@
+﻿Field,Explanation
+Purpose,Initial evidence-backed question bank for Junior Software Engineer interviews.
+Scope,"100 questions spanning coding/DSA, OOP, databases, OS, networking, software engineering, projects, behavioral and basic system design."
+Question wording,Questions are normalized/paraphrased from the listed resources. Do not treat normalized wording as a verbatim quotation.
+Source confidence,"High = source publishes cross-company frequency counts for the exact problem; Medium = employer guidance, preparation taxonomy or candidate/community report."
+source_verified,True means the source URL and supporting topic/question were checked during compilation; it does not mean every candidate report is independently audited.
+region_evidence,Indicates whether the supporting evidence is Pakistan-focused or global. It does not restrict where the question is relevant.
+difficulty,"Estimated for a junior candidate: Easy / Medium. It is a product classification, not necessarily the source's original rating."
+evaluation_rubric,"Suggested SmartInterview scoring rubric, not a rubric published by the source."
+company_or_context,Company names appear only where a source explicitly associates a reported question/topic with that employer or group of employers.
+Use,Use source_type and source_url to preserve provenance. Review licensing/terms before bulk importing source content.
