@@ -46,6 +46,14 @@ class Settings:
     ROLE_BRIEF_TTL_DAYS: int = int(os.getenv("ROLE_BRIEF_TTL_DAYS", "7"))
     ROLE_BRIEF_SCHEDULER: bool = os.getenv("ROLE_BRIEF_SCHEDULER", "1") not in ("0", "false", "False")
 
+    # --- Question bank / asking agent ---
+    # The fixed 100-question CSV the asking agent selects from.
+    QUESTION_BANK_PATH: str = os.getenv(
+        "QUESTION_BANK_PATH",
+        str(BACKEND_ROOT / "data" / "100 Questions.csv"),
+    )
+    QUESTION_AGENT_COUNT: int = int(os.getenv("QUESTION_AGENT_COUNT", "7"))
+
     # --- Follow-up questions ---
     # An answer whose Groq score ("overall", 0-100) is below the threshold triggers
     # a follow-up. Depth 2 means base question -> follow-up -> one more follow-up.

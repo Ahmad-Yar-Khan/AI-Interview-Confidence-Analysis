@@ -192,21 +192,21 @@ def _dedup_questions(questions: list[dict], sim_threshold: float = 0.70) -> list
 # ════════════════════════════════════════
 
 async def get_or_generate_questions(
-    session: dict, total: int = 5, role: str = "", years: int | None = None,
+    session: dict, total: int = 7, role: str = "", years: int | None = None,
 ) -> list[dict]:
     """
-    Generate the opening questions for a session. Groq reads the whole resume
-    plus the role context (job title -> cached research brief, years of
-    experience) and writes `total` questions; each is checked against the
-    resume before it is accepted (see generate_interview_questions). Further
-    questions come later as follow-ups to weak answers (followup_service).
+    Select the opening questions for a session with the asking agent
+    (app.llm.agents). The agent scores how relevant the fixed question bank is
+    to the candidate's parsed skills/projects, then picks `total` questions
+    from that bank. Further questions come later as follow-ups to weak answers
+    (followup_service).
 
-    Falls back to the older full-resume generator if grounding leaves nothing.
-    Mutates `session` in place (questions / job_role / years_experience / debug
-    fields).
+    Mutates `session` in place (questions / job_role / years_experience /
+    question_relevance / agent_output / debug fields).
     """
     # Local imports to avoid circular imports at module load time.
-    from app.llm import generate_interview_questions, generate_questions
+    from app.llm.agents import run_question_agent
+    from app.services.resume_parser_service import extract_skills_and_projects
     from app.services.role_brief_service import build_role_context
 
     role = role.strip()
@@ -222,43 +222,40 @@ async def get_or_generate_questions(
     resume_text  = session["resume_text"]
     role_context = await build_role_context(role, years)
     session["role_context"] = role_context.meta()
-    has_role = role_context.role_name is not None
 
-    # The grounding checks can reject questions, so ask up to twice and
-    # accumulate until there are enough.
-    questions: list[dict] = []
-    seen: set[str] = set()
-    for attempt in range(2):
-        try:
-            batch = await generate_interview_questions(
-                resume_text=resume_text,
-                role_context=role_context.text,
-                has_role=has_role,
-                count=total - len(questions),
-            )
-        except Exception as e:
-            logger.warning(f"Question generation attempt {attempt + 1} failed: {e}")
-            continue
-        for q in batch:
-            key = q["question"][:80].lower().strip()
-            if key not in seen:
-                seen.add(key)
-                questions.append(q)
-        if len(questions) >= total:
-            break
+    # Skills/projects were parsed at upload; parse now for older sessions.
+    sections = session.get("resume_sections")
+    if not isinstance(sections, dict) or not sections:
+        sections = await asyncio.to_thread(extract_skills_and_projects, resume_text)
+        session["resume_sections"] = sections
+    skills = sections.get("skills", "")
+    projects = sections.get("projects", "")
+    session["skills_section"] = skills
+    session["projects_section"] = projects
 
-    if not questions:
-        logger.warning("No grounded questions — falling back to full-resume generation.")
-        questions = await generate_questions(
-            resume_text=resume_text, total=total, job_context=role_context.text,
-        )
+    # The asking agent selects the questions from the fixed 100-question bank.
+    result = await run_question_agent(
+        skills=skills,
+        projects=projects,
+        resume_text=resume_text,
+        role=role_context.role_name or "",
+        years=years,
+        count=total,
+    )
+    questions = result.questions
+
+    session["question_relevance"] = result.relevance
+    session["agent_output"] = result.output
 
     for i, q in enumerate(questions):
         q["id"] = f"q{i+1}"
         q["question_id"] = f"q{i+1}"
         q.setdefault("is_followup", False)
 
-    logger.info(f"Questions assembled: {len(questions)} generated (role={role_context.role_name!r}, years={years})")
+    logger.info(
+        f"Question agent selected {len(questions)} questions "
+        f"(relevance={result.relevance}/10, role={role_context.role_name!r}, years={years})"
+    )
 
     session["debug_chunks"]    = await asyncio.to_thread(_resume_sections, resume_text)
     session["debug_retrieval"] = {"questions": questions}

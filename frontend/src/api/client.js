@@ -55,12 +55,12 @@ export async function fetchRoles() {
 // ── 3. Fetch tailored questions ───────────────────────────
 /**
  * @param {string} sessionId
- * @param {number} total     Opening questions to generate (default 5; follow-ups come later)
+ * @param {number} total     Opening questions to generate (default 7; follow-ups come later)
  * @param {string} role      Role slug from fetchRoles(), or 'other'
  * @param {number} years     Years of experience
- * @returns {{ questions: object[], role_context: object }}
+ * @returns {{ questions: object[], role_context: object, relevance: number, agent_output: string }}
  */
-export async function fetchQuestions(sessionId, total = 5, role = 'other', years = null) {
+export async function fetchQuestions(sessionId, total = 7, role = 'other', years = null) {
   try {
     const params = { total, role }
     if (years !== null && years !== undefined) params.years = years

@@ -241,6 +241,17 @@ export default function ReportScreen({ report, confidenceScores = {}, onRetake, 
                   <div style={{ fontSize: '0.83rem', lineHeight: 1.4 }}>{a.question}</div>
                   <div style={{ fontSize: '0.67rem', color: catMeta.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     {a.category} · <span className={`diff-badge diff-${a.difficulty}`} style={{ fontSize: '0.62rem', padding: '1px 6px' }}>{a.difficulty}</span>
+                    {a.score.evaluation_score != null && (
+                      <span style={{
+                        background: 'rgba(167,139,250,0.10)',
+                        border: '1px solid rgba(167,139,250,0.22)',
+                        color: 'var(--accent2)',
+                        borderRadius: 'var(--radius-pill)',
+                        padding: '1px 7px', fontSize: '0.62rem', fontFamily: 'var(--font-mono)',
+                      }}>
+                        Rubric {a.score.evaluation_score}/10
+                      </span>
+                    )}
                     {isBehav && <span style={{ color: 'var(--muted)' }}>· Effort Score</span>}
                     {conf?.status === 'done' && (
                       <span style={{
@@ -309,8 +320,8 @@ export default function ReportScreen({ report, confidenceScores = {}, onRetake, 
                     <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
                       {Object.entries(a.score.angles || {}).map(([key, val]) => {
                         const labels = isBehav
-                          ? { conceptual: 'Effort', technical: 'Richness', completeness: 'Structure' }
-                          : { conceptual: 'Conceptual', technical: 'Technical', completeness: 'Completeness' }
+                          ? { conceptual: 'Specificity', technical: 'Ownership', completeness: 'Structure' }
+                          : { conceptual: 'Correctness', technical: 'Depth', completeness: 'Completeness' }
                         return (
                           <div key={key} style={{
                             background: 'var(--surface3)', borderRadius: 8,
@@ -322,6 +333,23 @@ export default function ReportScreen({ report, confidenceScores = {}, onRetake, 
                         )
                       })}
                     </div>
+
+                    {/* Rubric feedback */}
+                    {a.score.feedback && (
+                      <div style={{
+                        marginTop: 14,
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 8, padding: '12px 14px',
+                      }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                          Feedback
+                        </div>
+                        <div style={{ fontSize: '0.83rem', color: 'var(--text2)', lineHeight: 1.65 }}>
+                          {a.score.feedback}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Confidence analysis */}
                     {conf && (

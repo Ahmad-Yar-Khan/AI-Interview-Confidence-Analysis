@@ -18,6 +18,9 @@ spacy
 # Groq
 groq
 
+# Multi-agent orchestration
+langgraph
+
 # RAG (optional): embeddings + vector search are no longer used by the live
 # question flow. Install backend/requirements-rag.txt only if you re-enable it.
 

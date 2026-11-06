@@ -20,13 +20,14 @@ router = APIRouter()
 @router.get("/api/questions/{session_id}")
 async def get_questions(
     session_id: str,
-    total: int = Query(5, ge=3, le=8),
+    total: int = Query(7, ge=3, le=8),
     role: str = OTHER_SLUG,
     years: int | None = Query(None, ge=0, le=50),
 ):
     """
-    Generate the opening questions (default 5) from the whole resume, the
-    chosen job title's research brief, and years of experience. Further
+    Select the opening questions (default 7) from the fixed question bank using
+    the asking agent, with the candidate's parsed skills/projects, the chosen
+    job title's research brief, and years of experience as context. Further
     questions arrive as follow-ups via POST /api/followup.
 
     `role` is a slug from GET /api/roles, or "other" (no job title is sent to
@@ -48,7 +49,12 @@ async def get_questions(
         logger.exception("Question generation failed")
         raise HTTPException(500, f"Question generation failed: {str(e)}")
 
-    return {"questions": questions, "role_context": session.get("role_context")}
+    return {
+        "questions": questions,
+        "role_context": session.get("role_context"),
+        "relevance": session.get("question_relevance"),
+        "agent_output": session.get("agent_output"),
+    }
 
 
 @router.get("/api/debug/chunks/{session_id}")

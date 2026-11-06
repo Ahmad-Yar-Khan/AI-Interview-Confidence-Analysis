@@ -1,10 +1,10 @@
 """
 answer_scoring.py
 ------------------
-LLM-based answer scoring — the live scoring path (api/routes/scoring.py calls
-score_answer() here). Unrelated to the classical TF-IDF/keyword scorer.py that
-used to sit in backend/ root; that file was dead code (never imported by
-main.py) and has been deleted rather than relocated.
+Legacy 0-100 LLM answer scorer retained for callers that still import
+score_answer(). The live scoring route now uses the rubric-based Evaluation
+Agent at app.llm.agents.evaluations.evaluate_answer(), which returns a 0-10
+score plus structured criteria and improvements.
 """
 
 import logging

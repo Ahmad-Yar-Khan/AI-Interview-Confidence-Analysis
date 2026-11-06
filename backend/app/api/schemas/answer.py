@@ -6,7 +6,7 @@ Pulled out of main.py so route files don't need to redefine or import schemas
 from the app factory module.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnswerPayload(BaseModel):
@@ -27,6 +27,9 @@ class ScoreResponse(BaseModel):
     angles: dict
     model_answer: str | None
     feedback: str = ""
+    evaluation_score: int | None = None
+    evaluation_improvements: list[str] = Field(default_factory=list)
+    criteria: dict = Field(default_factory=dict)
     # True when the score is weak enough that POST /api/followup will produce a follow-up.
     followup_eligible: bool = False
 

@@ -16,6 +16,7 @@ from app.llm.question_generation import (
     generate_project_questions,
 )
 from app.llm.answer_scoring import score_answer
+from app.llm.agents.evaluations import EvaluationResult, evaluate_answer
 
 __all__ = [
     "infer_categories",
@@ -25,4 +26,6 @@ __all__ = [
     "generate_followup",
     "generate_project_questions",
     "score_answer",
+    "EvaluationResult",
+    "evaluate_answer",
 ]

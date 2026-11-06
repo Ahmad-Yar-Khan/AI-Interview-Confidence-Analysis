@@ -62,7 +62,7 @@ export function useInterview() {
     if (!sessionId) return
     setLoading(true); setError(null)
     try {
-      const qResult = await fetchQuestions(sessionId, 5, role, years)
+      const qResult = await fetchQuestions(sessionId, 7, role, years)
       setQuestions(qResult.questions)
       setCurrentIndex(0)
       setAnswers({})
@@ -164,12 +164,16 @@ export function useInterview() {
         setAnswers(prev => ({
           ...prev,
           [qid]: {
-            scoring:       false,
-            userAnswer:    textForScoring,
-            modelAnswer:   q.model_answer ?? null,
-            overall:       result.overall,
-            is_behavioral: result.is_behavioral,
-            angles:        result.angles,
+            scoring:                false,
+            userAnswer:             textForScoring,
+            modelAnswer:            q.model_answer ?? null,
+            overall:                result.overall,
+            is_behavioral:          result.is_behavioral,
+            angles:                 result.angles,
+            evaluationScore:        result.evaluation_score,
+            evaluationImprovements: result.evaluation_improvements ?? [],
+            criteria:               result.criteria ?? {},
+            feedback:               result.feedback ?? '',
             replayCount,
           },
         }))

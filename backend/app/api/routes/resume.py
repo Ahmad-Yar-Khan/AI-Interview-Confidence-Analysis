@@ -14,6 +14,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.text_extractor import extract_text
 from app.llm.validation import strip_injection_lines
 from app.services.resume_service import looks_like_resume, guess_name
+from app.services.resume_parser_service import extract_skills_and_projects
 from app.services.session_store import session_store
 
 logger = logging.getLogger(__name__)
@@ -60,15 +61,25 @@ async def upload_resume(file: UploadFile = File(...)):
     if removed:
         logger.warning(f"Removed {len(removed)} instruction-like line(s) from uploaded resume: {removed}")
 
+    # Section-level context for later LLM/agent prompts. Parsing is cheap but
+    # offloaded so a large resume can't hold the event loop.
+    sections = await asyncio.to_thread(extract_skills_and_projects, resume_text)
+
     session_id = str(uuid.uuid4())
     session_store.create(session_id, {
         "resume_text": resume_text,
         "filename": file.filename,
+        "resume_sections": sections,
+        "skills_section": sections["skills"],
+        "projects_section": sections["projects"],
         "questions": [],
         "answers": [],
     })
 
-    logger.info(f"Session {session_id} created — {len(resume_text)} chars from {file.filename}")
+    logger.info(
+        f"Session {session_id} created — {len(resume_text)} chars from {file.filename} "
+        f"(skills={len(sections['skills'])} chars, projects={len(sections['projects'])} chars)"
+    )
     return {
         "session_id": session_id,
         "profile": {

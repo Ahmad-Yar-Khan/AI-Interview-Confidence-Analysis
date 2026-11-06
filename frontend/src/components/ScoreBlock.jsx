@@ -75,19 +75,26 @@ function AngleCard({ label, value, description }) {
 export default function ScoreBlock({ answerData }) {
   if (!answerData) return null
 
-  const { overall, is_behavioral, angles, modelAnswer } = answerData
+  const {
+    overall,
+    is_behavioral,
+    angles,
+    modelAnswer,
+    evaluationScore,
+    feedback,
+  } = answerData
   const color = getScoreColor(overall)
 
   const technicalAngles = [
-    { key: 'conceptual',   label: 'Conceptual',   desc: 'Semantic similarity' },
-    { key: 'technical',    label: 'Technical',    desc: 'Domain term overlap' },
+    { key: 'conceptual',   label: 'Correctness',  desc: 'Technical accuracy' },
+    { key: 'technical',    label: 'Depth',        desc: 'Reasoning & examples' },
     { key: 'completeness', label: 'Completeness', desc: 'Key point coverage' },
   ]
 
   const behavioralAngles = [
-    { key: 'conceptual',   label: 'Effort',    desc: 'Answer length & depth' },
-    { key: 'technical',    label: 'Richness',  desc: 'Behavioral keyword density' },
-    { key: 'completeness', label: 'Structure', desc: 'STAR method signals' },
+    { key: 'conceptual',   label: 'Specificity', desc: 'Concrete details' },
+    { key: 'technical',    label: 'Ownership',   desc: 'Actions & results' },
+    { key: 'completeness', label: 'Structure',   desc: 'STAR method signals' },
   ]
 
   const angleList = is_behavioral ? behavioralAngles : technicalAngles
@@ -111,6 +118,17 @@ export default function ScoreBlock({ answerData }) {
             }}>
               {getGrade(overall)}
             </span>
+            {evaluationScore != null && (
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
+                padding: '2px 8px', borderRadius: 'var(--radius-pill)',
+                background: 'rgba(167,139,250,0.10)',
+                border: '1px solid rgba(167,139,250,0.25)',
+                color: 'var(--accent2)',
+              }}>
+                Rubric {evaluationScore}/10
+              </span>
+            )}
             {is_behavioral && (
               <span style={{
                 fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
@@ -137,6 +155,28 @@ export default function ScoreBlock({ answerData }) {
           </div>
         </div>
       </div>
+
+      {/* Rubric feedback */}
+      {feedback && (
+        <div style={{
+          marginTop: 16,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '12px 16px',
+        }}>
+          <div style={{
+            fontSize: '0.68rem', textTransform: 'uppercase',
+            letterSpacing: '0.08em', color: 'var(--text2)',
+            fontWeight: 600, marginBottom: 6,
+          }}>
+            Feedback
+          </div>
+          <div style={{ fontSize: '0.84rem', color: 'var(--text2)', lineHeight: 1.65 }}>
+            {feedback}
+          </div>
+        </div>
+      )}
 
       {/* Model answer (technical only) */}
       {!is_behavioral && modelAnswer && (
