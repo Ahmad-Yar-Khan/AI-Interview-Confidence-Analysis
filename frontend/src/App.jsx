@@ -13,7 +13,6 @@ import ProfileStrip from "./components/ProfileStrip";
 import ReadyScreen from "./screens/ReadyScreen";
 import InterviewScreen from "./screens/InterviewScreen";
 import ReportScreen from "./screens/ReportScreen";
-import ConfidenceTestPage from "./screens/ConfidenceTestPage";
 import QuestionsPage from "./screens/QuestionsPage";
 
 // ── Loading screen quotes ─────────────────────────────────
@@ -309,7 +308,7 @@ function StepIndicator({ currentStep }) {
 }
 
 // ── Top bar ───────────────────────────────────────────────
-function TopBar({ onToggleConfidence, confidenceActive }) {
+function TopBar() {
   return (
     <div
       style={{
@@ -352,23 +351,6 @@ function TopBar({ onToggleConfidence, confidenceActive }) {
           gap: 24,
         }}
       >
-        <button
-          onClick={onToggleConfidence}
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "0.9rem",
-            color: confidenceActive ? "var(--accent)" : "var(--text2)",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: 0,
-            fontStyle: confidenceActive ? "italic" : "normal",
-            transition: "all 0.2s ease",
-          }}
-        >
-          Confidence Test
-        </button>
-
         <div
           style={{
             fontFamily: "var(--font-serif)",
@@ -393,9 +375,6 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [interview.step]);
-  const [showConfidence, setShowConfidence] = useState(
-    () => window.location.hash === "#confidence-test",
-  );
   const [showQuestions, setShowQuestions] = useState(
     () => window.location.hash === "#questions",
   );
@@ -403,36 +382,16 @@ export default function App() {
 
   useEffect(() => {
     const handler = () => {
-      setShowConfidence(window.location.hash === "#confidence-test");
       setShowQuestions(window.location.hash === "#questions");
     };
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
   }, []);
 
-  const toggleConfidence = () => {
-    const next = !showConfidence;
-    window.location.hash = next ? "#confidence-test" : "";
-    setShowConfidence(next);
-    setShowQuestions(false);
-  };
-
-  if (showConfidence) {
-    return (
-      <div style={{ minHeight: "100vh" }}>
-        <TopBar onToggleConfidence={toggleConfidence} confidenceActive />
-        <ConfidenceTestPage />
-      </div>
-    );
-  }
-
   if (showQuestions) {
     return (
       <div style={{ minHeight: "100vh" }}>
-        <TopBar
-          onToggleConfidence={toggleConfidence}
-          confidenceActive={false}
-        />
+        <TopBar />
         <QuestionsPage questions={interview.questions} />
       </div>
     );
@@ -451,7 +410,6 @@ export default function App() {
     allAnswered,
     progress,
     hasPendingScores,
-    confidenceScores,
     report,
     handleUpload,
     startInterview,
@@ -476,10 +434,7 @@ export default function App() {
   if (step === "upload") {
     return (
       <div style={{ minHeight: "100vh" }}>
-        <TopBar
-          onToggleConfidence={toggleConfidence}
-          confidenceActive={false}
-        />
+        <TopBar />
         <StepIndicator currentStep={step} />
         <UploadScreen onUpload={handleUpload} loading={loading} error={error} />
       </div>
@@ -515,7 +470,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <TopBar onToggleConfidence={toggleConfidence} confidenceActive={false} />
+      <TopBar />
       <StepIndicator currentStep={step} />
       <ProfileStrip profile={profile} onReset={reset} />
 
@@ -532,7 +487,6 @@ export default function App() {
         {step === "report" && (
           <ReportScreen
             report={report}
-            confidenceScores={confidenceScores}
             onRetake={retake}
             onReset={reset}
           />

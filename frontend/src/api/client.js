@@ -58,7 +58,7 @@ export async function fetchRoles() {
  * @param {number} total     Opening questions to generate (default 7; follow-ups come later)
  * @param {string} role      Role slug from fetchRoles(), or 'other'
  * @param {number} years     Years of experience
- * @returns {{ questions: object[], role_context: object, relevance: number, agent_output: string }}
+ * @returns {{ questions: object[], relevance: number, agent_output: string }}
  */
 export async function fetchQuestions(sessionId, total = 7, role = 'other', years = null) {
   try {
@@ -87,21 +87,6 @@ export async function fetchQuestions(sessionId, total = 7, role = 'other', years
 export async function scoreAnswer(payload) {
   try {
     const { data } = await api.post('/score', payload)
-    return data
-  } catch (err) {
-    throw new Error(extractError(err))
-  }
-}
-
-// ── 4b. Follow-up for a weak, already-scored answer ───────
-/**
- * @param {string} sessionId
- * @param {string} questionId  the question whose answer scored weakly
- * @returns {{ followup: object | null }}
- */
-export async function requestFollowup(sessionId, questionId) {
-  try {
-    const { data } = await api.post('/followup', { session_id: sessionId, question_id: questionId })
     return data
   } catch (err) {
     throw new Error(extractError(err))

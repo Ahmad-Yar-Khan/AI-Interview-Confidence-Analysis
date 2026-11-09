@@ -251,7 +251,7 @@ export default function InterviewScreen({
   const handleSubmit = () => {
     if (!hasAudio || loading) return;
     const text = transcriptRef.current.trim() || "[voice response]";
-    onSubmit(text, replayCount, audioBlobRef.current);
+    onSubmit(text, replayCount);
   };
 
   // ── Render ────────────────────────────────────────────────
@@ -675,7 +675,6 @@ export default function InterviewScreen({
                 <li>You have answered <strong style={{ color: "var(--text)" }}>{answeredCount}</strong> of <strong style={{ color: "var(--text)" }}>{questions.length}</strong> questions.</li>
                 <li>The remaining <strong style={{ color: "var(--text)" }}>{questions.length - answeredCount}</strong> question{questions.length - answeredCount !== 1 ? "s" : ""} will be skipped.</li>
                 <li>Your report will be calculated from completed answers only.</li>
-                <li>Any pending confidence analyses will still finish.</li>
               </ul>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
