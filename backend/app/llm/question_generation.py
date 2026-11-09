@@ -6,9 +6,9 @@ dataset-question personalization, and project-question generation (standalone
 and combined variants).
 
 Note on what's actually wired into the live app: generate_interview_questions()
-and generate_questions() (fallback) are called from question_service.py, and
-generate_followup() from followup_service.py. infer_categories(),
-personalize_dataset_questions(), and generate_project_questions() are
+and generate_questions() (fallback) are called from question_service.py.
+infer_categories(), personalize_dataset_questions(), and
+generate_project_questions() are
 complete, working, but currently unwired —
 kept here as available capabilities (same category as compute_category_weights
 in resume_parser), not deleted, since they aren't broken or duplicated, just
@@ -21,7 +21,7 @@ import re
 
 from app.llm.groq_client import chat, parse_json
 from app.llm.validation import (
-    CLAIMS_ABOUT_CANDIDATE, FollowupRejected, neutralize, output_problem, unsupported_details,
+    CLAIMS_ABOUT_CANDIDATE, neutralize, output_problem, unsupported_details,
 )
 from app.llm.prompts import (
     INTERVIEWER_SYSTEM_PROMPT,
@@ -30,7 +30,6 @@ from app.llm.prompts import (
     QUESTION_PROMPT_FALLBACK,
     PERSONALIZE_PROMPT,
     BASE_QUESTION_PROMPT,
-    FOLLOWUP_PROMPT,
     PROJECT_QUESTION_PROMPT,
 )
 
@@ -127,7 +126,7 @@ async def personalize_dataset_questions(questions: list[dict], resume_text: str)
 # ── Interview questions (the live path) ──────────────────────
 
 _VALID_DIFFICULTY = {"Easy", "Medium", "Hard"}
-MAX_FOLLOWUP_WORDS = 45   # the prompt asks for 40; a little slack before rejecting
+
 
 def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9+#]+", " ", text.lower()).strip()
@@ -230,52 +229,6 @@ async def generate_interview_questions(
 
     logger.info(f"Groq generated {len(raw)} questions, {len(out)} passed grounding checks")
     return out
-
-
-# ── Follow-up generation ─────────────────────────────────────
-
-async def generate_followup(
-    question: str,
-    answer: str,
-    score: int,
-    feedback: str,
-    years: int | None = None,
-) -> dict:
-    """One follow-up for a weak answer, based only on the question and what was said."""
-    experience_line = (
-        f"The candidate has {years} year{'s' if years != 1 else ''} of experience.\n\n"
-        if years is not None else ""
-    )
-    prompt = FOLLOWUP_PROMPT.format(
-        experience_line=experience_line,
-        score=score,
-        question=neutralize(question, "question", "answer", "scorer_feedback"),
-        answer=neutralize(answer.strip()[:3000], "question", "answer", "scorer_feedback"),
-        feedback=neutralize((feedback or "none").strip()[:500], "question", "answer", "scorer_feedback"),
-    )
-    result = parse_json(await chat(prompt, system=INTERVIEWER_SYSTEM_PROMPT, temperature=0.4))
-    if not isinstance(result, dict) or not isinstance(result.get("question"), str) or not result["question"].strip():
-        raise FollowupRejected("no question returned")
-
-    text = " ".join(result["question"].split())
-    model_answer = result.get("model_answer") if isinstance(result.get("model_answer"), str) else None
-
-    problem = output_problem(text, model_answer, max_question_chars=300)
-    if not problem and len(text.split()) > MAX_FOLLOWUP_WORDS:
-        problem = f"longer than {MAX_FOLLOWUP_WORDS} words"
-    if not problem:
-        # A follow-up may only build on what was asked and said — no new names, technologies or numbers.
-        invented = unsupported_details(text, question + "\n" + answer)
-        if invented:
-            problem = f"introduces details not in the question or answer: {invented}"
-    if problem:
-        raise FollowupRejected(problem)
-
-    return {
-        "question":     text,
-        "difficulty":   result["difficulty"] if result.get("difficulty") in _VALID_DIFFICULTY else None,
-        "model_answer": model_answer[:800] if model_answer else None,
-    }
 
 
 # ── Project Question Generation ───────────────────────────────

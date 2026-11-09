@@ -27,8 +27,8 @@ async def get_questions(
     """
     Select the opening questions (default 7) from the fixed question bank using
     the asking agent, with the candidate's parsed skills/projects, the chosen
-    job title's research brief, and years of experience as context. Further
-    questions arrive as follow-ups via POST /api/followup.
+    job title, and years of experience as context. Further questions arrive as
+    follow-ups created while scoring a weak answer.
 
     `role` is a slug from GET /api/roles, or "other" (no job title is sent to
     the LLM). `years` is the candidate's years of experience.

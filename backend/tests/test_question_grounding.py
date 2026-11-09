@@ -10,7 +10,6 @@ import asyncio
 import json
 
 from app.llm import question_generation as qg
-from app.services.role_brief_service import build_role_context
 
 RESUME = """Jane Doe
 Skills: Python, FastAPI, PostgreSQL, Docker
@@ -71,10 +70,3 @@ def test_non_list_reply_raises(monkeypatch):
     import pytest
     with pytest.raises(ValueError):
         run({"questions": []}, monkeypatch)
-
-
-def test_other_role_sends_no_job_title_and_years_are_included():
-    ctx = asyncio.run(build_role_context("other", 4))
-    assert "TARGET ROLE: none specified" in ctx.text
-    assert "4 years" in ctx.text and "Mid level" in ctx.text
-    assert ctx.role_name is None and ctx.brief_used is False

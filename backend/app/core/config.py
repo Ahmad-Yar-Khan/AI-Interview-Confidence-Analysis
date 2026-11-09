@@ -33,19 +33,6 @@ class Settings:
     # Override via GROQ_MODEL in .env if you get access to something else.
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
-    # --- Role briefs (weekly Tavily research per dropdown job title) ---
-    # Without a key the scheduler stays off and questions are generated from the
-    # resume alone — the interview never blocks on search.
-    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
-    ROLE_BRIEF_DB_PATH: str = os.getenv(
-        "ROLE_BRIEF_DB_PATH",
-        str(BACKEND_ROOT / "data" / "role_briefs.db"),
-    )
-    # A brief older than this is no longer served. The scheduler refreshes at 6/7
-    # of the TTL so a healthy brief never lapses between refreshes.
-    ROLE_BRIEF_TTL_DAYS: int = int(os.getenv("ROLE_BRIEF_TTL_DAYS", "7"))
-    ROLE_BRIEF_SCHEDULER: bool = os.getenv("ROLE_BRIEF_SCHEDULER", "1") not in ("0", "false", "False")
-
     # --- Question bank / asking agent ---
     # The fixed 100-question CSV the asking agent selects from.
     QUESTION_BANK_PATH: str = os.getenv(
@@ -53,13 +40,10 @@ class Settings:
         str(BACKEND_ROOT / "data" / "100 Questions.csv"),
     )
     QUESTION_AGENT_COUNT: int = int(os.getenv("QUESTION_AGENT_COUNT", "7"))
-
-    # --- Follow-up questions ---
-    # An answer whose Groq score ("overall", 0-100) is below the threshold triggers
-    # a follow-up. Depth 2 means base question -> follow-up -> one more follow-up.
-    FOLLOWUP_SCORE_THRESHOLD: int = int(os.getenv("FOLLOWUP_SCORE_THRESHOLD", "60"))
-    FOLLOWUP_MAX_DEPTH: int = int(os.getenv("FOLLOWUP_MAX_DEPTH", "2"))
-    FOLLOWUP_MAX_TOTAL: int = int(os.getenv("FOLLOWUP_MAX_TOTAL", "7"))
+    # Hard ceiling on the interview queue (base questions + follow-ups). If the
+    # 12th question spawns a follow-up, that one follow-up is still asked; the
+    # interview otherwise ends once the cap is reached.
+    INTERVIEW_MAX_QUESTIONS: int = int(os.getenv("INTERVIEW_MAX_QUESTIONS", "12"))
 
     # --- CORS ---
     CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")

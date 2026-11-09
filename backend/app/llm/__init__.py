@@ -12,20 +12,27 @@ from app.llm.question_generation import (
     generate_questions,
     personalize_dataset_questions,
     generate_interview_questions,
-    generate_followup,
     generate_project_questions,
 )
 from app.llm.answer_scoring import score_answer
-from app.llm.agents.evaluations import EvaluationResult, evaluate_answer
+from app.llm.agents.evaluations import (
+    EvaluationFlowResult,
+    EvaluationResult,
+    evaluate_answer,
+    generate_followup_question,
+    run_evaluation_flow,
+)
 
 __all__ = [
     "infer_categories",
     "generate_questions",
     "personalize_dataset_questions",
     "generate_interview_questions",
-    "generate_followup",
     "generate_project_questions",
     "score_answer",
+    "EvaluationFlowResult",
     "EvaluationResult",
     "evaluate_answer",
+    "generate_followup_question",
+    "run_evaluation_flow",
 ]

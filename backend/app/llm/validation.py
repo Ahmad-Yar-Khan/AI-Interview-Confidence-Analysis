@@ -32,9 +32,8 @@ def neutralize(text: str, *tags: str) -> str:
 
 # ── 2. Prompt-injection phrasing ──────────────────────────────
 
-# Deliberately narrower than the web-snippet filter in search_validation: a
-# resume for an AI role may legitimately say "system prompt", so only
-# instruction-override phrasing is matched here.
+# Deliberately narrow: a resume for an AI role may legitimately say "system
+# prompt", so only instruction-override phrasing is matched here.
 _OVERRIDE = re.compile(
     r"ignore\s+(all\s+|any\s+|the\s+|your\s+)?(previous|prior|above|earlier|preceding)\s+(instructions?|prompts?|rules?)"
     r"|disregard\s+(all\s+|the\s+|any\s+)?(previous|prior|above|earlier|your)\b"
@@ -150,7 +149,3 @@ def output_problem(question: str, model_answer: str | None = None, max_question_
     if len(question) > max_question_chars:
         return "question is too long"
     return None
-
-
-class FollowupRejected(Exception):
-    """The generated follow-up failed validation; no follow-up is asked."""

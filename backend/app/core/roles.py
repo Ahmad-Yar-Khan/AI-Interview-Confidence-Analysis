@@ -2,13 +2,11 @@
 roles.py
 --------
 The fixed job-title list behind the frontend dropdown. Single source of truth:
-the frontend fetches it from GET /api/roles, the weekly job researches every
-entry, and the question route validates the incoming slug against it.
+the frontend fetches it from GET /api/roles and the question route validates
+the incoming slug against it.
 
 Each entry is (display name, search name). The display name is what the user
-sees; the search name is the single primary term used in web queries, so a
-combined row like "Cloud Engineer / Cloud Architect" doesn't produce a muddled
-query. Slugs are derived from the display name and are stable cache keys.
+sees; slugs are derived from the display name and are stable keys.
 """
 
 import re

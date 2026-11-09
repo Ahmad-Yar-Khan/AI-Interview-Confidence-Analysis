@@ -1,11 +1,11 @@
 """
 question_service.py
 --------------------
-Builds the opening questions for a session: Groq reads the whole resume plus
-the role context (job title brief, years of experience) and writes a handful
-of questions, each verified against the resume (see
-llm.question_generation.generate_interview_questions). Everything after those
-opening questions is a follow-up to a weak answer (see followup_service).
+Builds the opening questions for a session: the asking agent
+(app.llm.agents.run_question_agent) selects them from the fixed question bank
+using the candidate's parsed skills/projects, the chosen job title, and years
+of experience. Everything after those opening questions is a follow-up to a
+weak answer (see evaluation_flow_agent).
 
 The FAISS dataset retrieval, HR sampling, and SBERT dedup helpers, and
 init_rag()/rag_status(), are no longer part of the question flow and init_rag()
@@ -16,6 +16,8 @@ questions come back; rag_status() still backs /api/health (reports not ready).
 import asyncio
 import random
 import logging
+
+from app.core.roles import OTHER_SLUG, get_role
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +201,7 @@ async def get_or_generate_questions(
     (app.llm.agents). The agent scores how relevant the fixed question bank is
     to the candidate's parsed skills/projects, then picks `total` questions
     from that bank. Further questions come later as follow-ups to weak answers
-    (followup_service).
+    (evaluation_flow_agent).
 
     Mutates `session` in place (questions / job_role / years_experience /
     question_relevance / agent_output / debug fields).
@@ -207,7 +209,6 @@ async def get_or_generate_questions(
     # Local imports to avoid circular imports at module load time.
     from app.llm.agents import run_question_agent
     from app.services.resume_parser_service import extract_skills_and_projects
-    from app.services.role_brief_service import build_role_context
 
     role = role.strip()
     context_changed = (role != session.get("job_role", "") or years != session.get("years_experience"))
@@ -220,8 +221,9 @@ async def get_or_generate_questions(
     session.pop("followups", None)   # a fresh question set starts with fresh follow-up state
 
     resume_text  = session["resume_text"]
-    role_context = await build_role_context(role, years)
-    session["role_context"] = role_context.meta()
+    role_obj     = get_role(role) if role and role != OTHER_SLUG else None
+    role_name    = role_obj.name if role_obj else None
+    session["role_context"] = {"role": role_name, "years": years}
 
     # Skills/projects were parsed at upload; parse now for older sessions.
     sections = session.get("resume_sections")
@@ -238,7 +240,7 @@ async def get_or_generate_questions(
         skills=skills,
         projects=projects,
         resume_text=resume_text,
-        role=role_context.role_name or "",
+        role=role_name or "",
         years=years,
         count=total,
     )
@@ -254,7 +256,7 @@ async def get_or_generate_questions(
 
     logger.info(
         f"Question agent selected {len(questions)} questions "
-        f"(relevance={result.relevance}/10, role={role_context.role_name!r}, years={years})"
+        f"(relevance={result.relevance}/10, role={role_name!r}, years={years})"
     )
 
     session["debug_chunks"]    = await asyncio.to_thread(_resume_sections, resume_text)
