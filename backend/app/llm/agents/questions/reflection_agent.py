@@ -11,6 +11,7 @@ from app.llm.agents.questions.shared import (
     as_bool,
     clamp_score,
     clean_text,
+    project_questions,
     questions_payload,
     resume_excerpt,
 )
@@ -40,9 +41,16 @@ Reply with valid JSON only:
 }"""
 
 
+_REASONING_EFFORT = "low"
+_MAX_TOKENS = 1024
+
+
 def _reflection_prompt(state: QuestionAgentState) -> str:
-    base = state.get("base_questions") or []
-    tailored = state.get("tailored_questions") or state.get("questions") or []
+    # Only project questions can be tailored, so only they need review.
+    base = project_questions(state.get("base_questions") or [])
+    tailored = project_questions(
+        state.get("tailored_questions") or state.get("questions") or []
+    )
     return f"""Review these tailored interview questions.
 
 <resume_excerpt>
@@ -64,6 +72,8 @@ async def reflect_on_questions(state: QuestionAgentState) -> dict:
         _reflection_prompt(state),
         system=REFLECTION_SYSTEM_PROMPT,
         temperature=0.0,
+        reasoning_effort=_REASONING_EFFORT,
+        max_tokens=_MAX_TOKENS,
     )
 
     try:

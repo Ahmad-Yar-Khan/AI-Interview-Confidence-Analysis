@@ -75,6 +75,12 @@ def _route_after_evaluation(state: EvaluationFlowState) -> str:
     followup_count = int(state.get("followup_count", 0))
     followup_allowed = bool(state.get("followup_allowed", True))
 
+    # A candidate who explicitly says they don't know is acknowledged by the
+    # evaluation agent; do not press them with a follow-up.
+    if evaluation.get("admits_no_knowledge"):
+        logger.info("Candidate admitted not knowing; moving on without a follow-up.")
+        return "next"
+
     if score < 6 and followup_allowed and followup_count < MAX_FOLLOWUPS:
         logger.info(
             f"Score {score}/10 at depth {followup_count}; asking a follow-up."

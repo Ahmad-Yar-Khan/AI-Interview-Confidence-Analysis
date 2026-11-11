@@ -176,6 +176,90 @@ def test_invalid_json_is_retried_once(monkeypatch):
     assert result["score"] == 6
 
 
+def test_admission_flag_acknowledges_and_drops_improvements(monkeypatch):
+    result, _ = run_evaluation(
+        monkeypatch,
+        {
+            "score": 1,
+            "criteria": {
+                "correctness": 1,
+                "completeness": 1,
+                "clarity": 1,
+                "depth": 1,
+            },
+            "admits_no_knowledge": True,
+            "feedback": "The candidate does not know.",
+            "improvements": ["Study caching"],
+        },
+        model_answer="A cache is a fast storage layer.",
+    )
+
+    assert result["admits_no_knowledge"] is True
+    assert result["score"] <= 2
+    assert result["improvements"] == []
+    assert "okay not to know" in result["feedback"].lower()
+
+
+def test_explicit_dont_know_is_detected_without_model_flag(monkeypatch):
+    async def fake_chat(prompt, **kw):
+        return json.dumps({
+            "score": 4,
+            "criteria": {
+                "correctness": 4,
+                "completeness": 4,
+                "clarity": 4,
+                "depth": 4,
+            },
+            "admits_no_knowledge": False,
+            "feedback": "Needs work.",
+            "improvements": ["Study caching"],
+        })
+
+    monkeypatch.setattr(ev, "chat", fake_chat)
+    result = asyncio.run(
+        ev.evaluate_answer(
+            question="What is a cache?",
+            user_answer="I don't know.",
+            model_answer="A fast storage layer.",
+        )
+    )
+
+    assert result["admits_no_knowledge"] is True
+    assert result["score"] <= 2
+    assert result["improvements"] == []
+
+
+def test_hedged_but_substantive_answer_is_not_an_admission(monkeypatch):
+    async def fake_chat(prompt, **kw):
+        return json.dumps({
+            "score": 5,
+            "criteria": {
+                "correctness": 5,
+                "completeness": 5,
+                "clarity": 5,
+                "depth": 5,
+            },
+            "admits_no_knowledge": False,
+            "feedback": "Partially correct.",
+            "improvements": ["Mention eviction"],
+        })
+
+    monkeypatch.setattr(ev, "chat", fake_chat)
+    result = asyncio.run(
+        ev.evaluate_answer(
+            question="What is a cache?",
+            user_answer=(
+                "I'm not sure, but I think a cache stores frequently accessed data "
+                "to reduce latency and database load."
+            ),
+            model_answer="A fast storage layer.",
+        )
+    )
+
+    assert result["admits_no_knowledge"] is False
+    assert result["score"] == 5
+
+
 def test_route_maps_rubric_to_legacy_score_shape():
     from app.api.routes.scoring import _to_score_result
 

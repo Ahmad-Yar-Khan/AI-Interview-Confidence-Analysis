@@ -33,12 +33,39 @@ def _retry_delay(error: Exception, attempt: int) -> float:
     return min(30.0, 5.0 * (2 ** attempt))
 
 
-async def chat(prompt: str, *, system: str | None = None, temperature: float = 0.7) -> str:
-    """Send a single user-turn prompt (optionally with a system message) and return the raw text response."""
+def _supports_reasoning_effort(model: str) -> bool:
+    # Only the gpt-oss models accept low/medium/high; other Groq models reject
+    # the parameter, so it is dropped when GROQ_MODEL points elsewhere.
+    return model.startswith("openai/gpt-oss")
+
+
+async def chat(
+    prompt: str,
+    *,
+    system: str | None = None,
+    temperature: float = 0.7,
+    reasoning_effort: str | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """
+    Send a single user-turn prompt (optionally with a system message) and
+    return the raw text response.
+
+    reasoning_effort ("low" / "medium" / "high") limits the hidden reasoning
+    tokens a gpt-oss model spends; those tokens count against Groq's
+    tokens-per-minute limit, so simple agents should use "low". max_tokens caps
+    the completion (reasoning included) so one call can't run away.
+    """
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
+
+    extra: dict = {}
+    if reasoning_effort and _supports_reasoning_effort(_MODEL_NAME):
+        extra["reasoning_effort"] = reasoning_effort
+    if max_tokens:
+        extra["max_completion_tokens"] = max_tokens
 
     for attempt in range(_MAX_RETRIES):
         try:
@@ -46,6 +73,7 @@ async def chat(prompt: str, *, system: str | None = None, temperature: float = 0
                 model=_MODEL_NAME,
                 messages=messages,
                 temperature=temperature,
+                **extra,
             )
             return response.choices[0].message.content
         except RateLimitError as e:

@@ -4,17 +4,24 @@ question_agent.py
 LangGraph orchestrator for the question-asking pipeline.
 
 Flow:
-    assess_relevance -> select_questions -> tailor_questions -> reflect_on_questions
-                                                                     |
-                                               approved? -----------+--> compose_output -> END
-                                                   |
-                                                   +--> tailor_questions (retry with feedback)
+    select_questions --(any "Projects & Practical" question?)--no--> compose_output -> END
+           |yes
+           v
+    tailor_questions --(anything rewritten?)--no--> compose_output
+           |yes
+           v
+    reflect_on_questions --approved?--yes--> compose_output
+           |no (and revisions left)
+           +--> tailor_questions (retry with feedback)
 
-The relevance node scores how well the fixed bank matches the candidate. The
-selection node picks exactly `count` questions (7 by default) from the bank.
-The tailoring node personalizes them with the candidate's real projects/skills.
-The reflection node reviews the result; rejected drafts loop back to tailoring
-with explicit feedback, up to `max_revisions` attempts.
+The selection node scores how well the fixed bank matches the candidate and
+picks exactly `count` questions (7 by default) in a single LLM call. The
+tailoring node personalizes only the "Projects & Practical" questions with the
+candidate's real projects/skills. The reflection node reviews those rewrites;
+rejected drafts loop back to tailoring with explicit feedback, up to
+`max_revisions` attempts. Tailoring and reflection are skipped when there is
+nothing to personalize, which keeps the pipeline's token use (and Groq rate
+limit pressure) down.
 
 Final output:
     RELEVANCE: <0-10>
@@ -32,13 +39,12 @@ from langgraph.graph import END, START, StateGraph
 
 from app.core.config import settings
 from app.llm.agents.question_bank import get_question_bank
+from app.llm.agents.questions.shared import project_questions
 from app.llm.agents.questions import (
     REFLECTION_SYSTEM_PROMPT,
-    RELEVANCE_SYSTEM_PROMPT,
     SELECTION_SYSTEM_PROMPT,
     TAILORING_SYSTEM_PROMPT,
     QuestionAgentState,
-    assess_relevance,
     reflect_on_questions,
     select_questions,
     tailor_questions,
@@ -50,7 +56,6 @@ __all__ = [
     "QuestionAgentResult",
     "question_agent_graph",
     "run_question_agent",
-    "RELEVANCE_SYSTEM_PROMPT",
     "SELECTION_SYSTEM_PROMPT",
     "TAILORING_SYSTEM_PROMPT",
     "REFLECTION_SYSTEM_PROMPT",
@@ -68,12 +73,37 @@ class QuestionAgentResult:
     reflection_score: int = 0
 
 
+def _final_questions(state) -> list[dict]:
+    # Tailoring is skipped when no project question was selected, so fall back
+    # to the selection's base questions.
+    return (
+        state.get("tailored_questions")
+        or state.get("questions")
+        or state.get("base_questions")
+        or []
+    )
+
+
 def compose_output(state: QuestionAgentState) -> dict:
-    questions = state.get("tailored_questions") or state.get("questions") or []
+    questions = _final_questions(state)
     lines = [f"RELEVANCE: {state['relevance']}", "", "QUESTIONS:"]
     for i, q in enumerate(questions, 1):
         lines.append(f"{i}. {q['question']}")
     return {"output": "\n".join(lines)}
+
+
+def _route_after_selection(state: QuestionAgentState) -> str:
+    if project_questions(state.get("base_questions") or []):
+        return "tailoring"
+    logger.info("No project questions selected; skipping tailoring and reflection.")
+    return "compose"
+
+
+def _route_after_tailoring(state: QuestionAgentState) -> str:
+    if state.get("tailored_changed", 0) > 0:
+        return "reflection"
+    logger.info("Tailoring changed nothing; skipping reflection.")
+    return "compose"
 
 
 def _route_after_reflection(state: QuestionAgentState) -> str:
@@ -98,16 +128,22 @@ def _route_after_reflection(state: QuestionAgentState) -> str:
 
 def _build_graph():
     graph = StateGraph(QuestionAgentState)
-    graph.add_node("assess_relevance", assess_relevance)
     graph.add_node("select_questions", select_questions)
     graph.add_node("tailor_questions", tailor_questions)
     graph.add_node("reflect_on_questions", reflect_on_questions)
     graph.add_node("compose_output", compose_output)
 
-    graph.add_edge(START, "assess_relevance")
-    graph.add_edge("assess_relevance", "select_questions")
-    graph.add_edge("select_questions", "tailor_questions")
-    graph.add_edge("tailor_questions", "reflect_on_questions")
+    graph.add_edge(START, "select_questions")
+    graph.add_conditional_edges(
+        "select_questions",
+        _route_after_selection,
+        {"tailoring": "tailor_questions", "compose": "compose_output"},
+    )
+    graph.add_conditional_edges(
+        "tailor_questions",
+        _route_after_tailoring,
+        {"reflection": "reflect_on_questions", "compose": "compose_output"},
+    )
     graph.add_conditional_edges(
         "reflect_on_questions",
         _route_after_reflection,
@@ -152,7 +188,7 @@ async def run_question_agent(
     })
     return QuestionAgentResult(
         relevance=final["relevance"],
-        questions=final.get("tailored_questions") or final.get("questions") or [],
+        questions=_final_questions(final),
         output=final["output"],
         approved=final.get("reflection_approved", True),
         reflection_score=final.get("reflection_score", 0),

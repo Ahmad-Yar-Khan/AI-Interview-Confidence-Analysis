@@ -10,7 +10,7 @@ from app.api.schemas.answer import AnswerPayload
 from app.llm.agents.evaluations import evaluation_flow_agent as ef
 
 
-def evaluation(score):
+def evaluation(score, admits_no_knowledge=False):
     return {
         "score": score,
         "criteria": {
@@ -22,15 +22,16 @@ def evaluation(score):
         "feedback": "Feedback about the weak areas.",
         "improvements": ["Mention idempotency", "Give an example"],
         "is_behavioral": False,
+        "admits_no_knowledge": admits_no_knowledge,
     }
 
 
-def stub_flow(monkeypatch, score, followup_text="What about idempotency?"):
+def stub_flow(monkeypatch, score, followup_text="What about idempotency?", admits_no_knowledge=False):
     calls = {"eval": 0, "followup": 0, "followup_kwargs": None}
 
     async def fake_evaluate(**kwargs):
         calls["eval"] += 1
-        return evaluation(score)
+        return evaluation(score, admits_no_knowledge)
 
     async def fake_followup(**kwargs):
         calls["followup"] += 1
@@ -69,6 +70,19 @@ def test_weak_answer_generates_first_followup(monkeypatch):
     assert calls["followup"] == 1
     assert "Feedback about the weak areas." in calls["followup_kwargs"]["feedback"]
     assert "Mention idempotency" in calls["followup_kwargs"]["feedback"]
+
+
+def test_admission_of_not_knowing_skips_followup(monkeypatch):
+    calls = stub_flow(monkeypatch, score=1, admits_no_knowledge=True)
+    result = asyncio.run(ef.run_evaluation_flow(
+        question="Q",
+        user_answer="I don't know.",
+        followup_count=0,
+    ))
+
+    assert result.should_followup is False
+    assert result.followup_question is None
+    assert calls["followup"] == 0
 
 
 def test_weak_answer_at_depth_one_gets_second_followup(monkeypatch):

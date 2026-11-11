@@ -16,10 +16,8 @@ class QuestionAgentState(TypedDict, total=False):
     bank: list[dict]
     max_revisions: int
 
-    # Relevance agent
+    # Selection agent (also scores relevance)
     relevance: int
-
-    # Selection agent
     selected: list[dict]
     base_questions: list[dict]
 
@@ -30,6 +28,7 @@ class QuestionAgentState(TypedDict, total=False):
     reflection_feedback: str
     reflection_score: int
     revisions: int
+    tailored_changed: int
 
     # Output
     output: str

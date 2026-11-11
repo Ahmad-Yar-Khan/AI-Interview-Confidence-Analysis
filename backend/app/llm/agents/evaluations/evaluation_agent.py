@@ -13,6 +13,7 @@ Flow:
 """
 
 import logging
+import re
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -48,6 +49,7 @@ EVALUATION_SYSTEM_PROMPT = (
     '    "clarity": 0,\n'
     '    "depth": 0\n'
     "  },\n"
+    '  "admits_no_knowledge": false,\n'
     '  "feedback": "one or two specific sentences",\n'
     '  "weak_points": ["specific technical or logical concept missed or flawed"],\n'
     '  "improvements": ["concrete improvement"]\n'
@@ -62,6 +64,11 @@ EVALUATION_SYSTEM_PROMPT = (
     "- If score < 6, provide 1-3 concrete, actionable improvements in 'improvements'.\n"
     "- If score >= 6, improvements may be empty.\n"
     "- Feedback and weak_points must refer to what the candidate actually said and be diagnostically useful for a follow-up interviewer agent.\n"
+    "- Set 'admits_no_knowledge' to true ONLY when the candidate explicitly concedes that they do not know the answer "
+    "(e.g. \"I don't know\", \"I'm not sure\", \"no idea\", \"I haven't worked with that\", \"I can't recall\") and makes no substantive attempt. "
+    "A hedge that still attempts an answer (\"I'm not sure, but I think ...\") is not an admission.\n"
+    "- When 'admits_no_knowledge' is true: score and every criterion must be 0-2, 'weak_points' and 'improvements' must be empty, "
+    "and 'feedback' must be a brief, respectful acknowledgment such as \"That's completely fine — it's okay not to know. Let's move on.\"\n"
 )
 
 
@@ -76,6 +83,7 @@ class EvaluationState(TypedDict, total=False):
     feedback: str
     improvements: list[str]
     is_behavioral: bool
+    admits_no_knowledge: bool
 
 
 class EvaluationResult(TypedDict):
@@ -84,6 +92,7 @@ class EvaluationResult(TypedDict):
     feedback: str
     improvements: list[str]
     is_behavioral: bool
+    admits_no_knowledge: bool
 
 
 def _has_model_answer(model_answer: str | None) -> bool:
@@ -91,6 +100,34 @@ def _has_model_answer(model_answer: str | None) -> bool:
         model_answer
         and str(model_answer).strip().upper() not in ("", "NULL", "NONE", "NAN")
     )
+
+
+_NO_KNOWLEDGE_FEEDBACK = (
+    "That's completely fine — it's okay not to know. Let's move on to the next question."
+)
+
+_ADMISSION_PATTERNS = (
+    r"\bi\s+(?:really\s+)?(?:don'?t|do\s+not)\s+know\b",
+    r"\bno\s+idea\b",
+    r"\bi\s+(?:haven'?t|have\s+not)\s+(?:worked|used|done|seen|studied|come\s+across)\b",
+    r"\bi\s+(?:can'?t|cannot)\s+(?:answer|recall|remember)\b",
+    r"\bnot\s+familiar\s+with\b",
+    r"\bi\s+don'?t\s+have\s+(?:any\s+)?experience\b",
+)
+_ADMISSION_RE = re.compile("|".join(_ADMISSION_PATTERNS), re.IGNORECASE)
+
+
+def _looks_like_admission(answer: str) -> bool:
+    """Deterministic backstop for explicit "I don't know" answers.
+
+    Only fires when the admission is essentially the whole answer; a hedge that
+    still contains a substantive attempt is left to the model's judgement.
+    """
+    text = " ".join(answer.split())
+    if not text or not _ADMISSION_RE.search(text):
+        return False
+    remainder = " ".join(_ADMISSION_RE.sub(" ", text).split())
+    return len(remainder.split()) <= 6
 
 
 def _clamp_score(value: object) -> int:
@@ -172,11 +209,18 @@ def _parse_evaluation(raw: str) -> dict:
         if len(improvements) >= 3:
             break
 
+    raw_admits = data.get("admits_no_knowledge")
+    if isinstance(raw_admits, str):
+        admits_no_knowledge = raw_admits.strip().lower() in ("true", "yes", "1")
+    else:
+        admits_no_knowledge = bool(raw_admits)
+
     return {
         "score": score,
         "criteria": criteria,
         "feedback": feedback,
         "improvements": improvements,
+        "admits_no_knowledge": admits_no_knowledge,
     }
 
 
@@ -185,6 +229,10 @@ def _apply_guards(state: EvaluationState, parsed: dict) -> dict:
     criteria = dict(parsed["criteria"])
     feedback = str(parsed["feedback"]).strip()
     improvements = list(parsed["improvements"])
+
+    admits_no_knowledge = bool(parsed.get("admits_no_knowledge")) or _looks_like_admission(
+        str(state.get("user_answer") or "")
+    )
 
     # Deterministic safety net: an answer that tries to instruct the evaluator
     # cannot earn more than 2/10, whatever the model returned.
@@ -196,27 +244,37 @@ def _apply_guards(state: EvaluationState, parsed: dict) -> dict:
         ).strip()
         logger.warning("Answer contained instruction-override phrasing; score capped at 2/10.")
 
-    # Improvements are only requested for weak answers (below 6/10).
-    if score >= 6:
+    if admits_no_knowledge:
+        # A candidate who explicitly concedes they don't know is acknowledged
+        # gently and the interview moves on without a follow-up.
+        score = min(score, 2)
+        criteria = {key: min(value, 2) for key, value in criteria.items()}
         improvements = []
-    elif not improvements:
-        weakest = min(criteria, key=criteria.get)
-        improvements = [
-            f"Strengthen {weakest} with a clearer, more specific explanation."
-        ]
+        feedback = _NO_KNOWLEDGE_FEEDBACK
+        logger.info("Candidate admitted not knowing; acknowledging and moving on.")
+    else:
+        # Improvements are only requested for weak answers (below 6/10).
+        if score >= 6:
+            improvements = []
+        elif not improvements:
+            weakest = min(criteria, key=criteria.get)
+            improvements = [
+                f"Strengthen {weakest} with a clearer, more specific explanation."
+            ]
 
-    if not feedback:
-        feedback = (
-            "The answer is solid overall; keep adding specific details and examples."
-            if score >= 6
-            else "The answer needs more accurate, complete, and specific detail."
-        )
+        if not feedback:
+            feedback = (
+                "The answer is solid overall; keep adding specific details and examples."
+                if score >= 6
+                else "The answer needs more accurate, complete, and specific detail."
+            )
 
     return {
         "score": score,
         "criteria": criteria,
         "feedback": feedback,
         "improvements": improvements,
+        "admits_no_knowledge": admits_no_knowledge,
     }
 
 
@@ -278,4 +336,5 @@ async def evaluate_answer(
         feedback=final["feedback"],
         improvements=final["improvements"],
         is_behavioral=final["is_behavioral"],
+        admits_no_knowledge=bool(final.get("admits_no_knowledge")),
     )

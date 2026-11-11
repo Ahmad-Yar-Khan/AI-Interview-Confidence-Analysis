@@ -13,6 +13,10 @@ from app.llm.groq_client import parse_json
 logger = logging.getLogger(__name__)
 
 VALID_DIFFICULTY = {"Easy", "Medium", "Hard"}
+# The only bank topic the tailoring agent personalizes.
+PROJECT_CATEGORY = "Projects & Practical"
+# Used when the selection reply omits a readable relevance score.
+DEFAULT_RELEVANCE = 5
 MAX_CONTEXT_CHARS = 4000
 MAX_RESUME_EXCERPT = 3000
 MAX_REFLECTION_RESUME = 6000
@@ -58,6 +62,14 @@ def bank_block(bank: list[dict]) -> str:
         f"[{q['difficulty']}] {q['question']}"
         for q in bank
     )
+
+
+def is_project_question(question: dict) -> bool:
+    return question.get("category") == PROJECT_CATEGORY
+
+
+def project_questions(questions: list[dict]) -> list[dict]:
+    return [q for q in questions if is_project_question(q)]
 
 
 def questions_payload(questions: list[dict]) -> str:
@@ -134,12 +146,26 @@ def parse_relevance(raw: str) -> int:
     return max(0, min(10, int(match.group(1))))
 
 
-def parse_selection(raw: str, bank: list[dict], count: int) -> list[dict]:
+def parse_relevance_field(data) -> int:
+    """Relevance from the selection reply's "relevance" field, or DEFAULT_RELEVANCE."""
+    value = data.get("relevance") if isinstance(data, dict) else None
+    if value is None:
+        logger.warning(f"Selection reply has no relevance; using {DEFAULT_RELEVANCE}")
+        return DEFAULT_RELEVANCE
+    try:
+        return parse_relevance(str(value))
+    except ValueError:
+        logger.warning(f"Unreadable relevance {value!r}; using {DEFAULT_RELEVANCE}")
+        return DEFAULT_RELEVANCE
+
+
+def parse_selection(raw, bank: list[dict], count: int) -> list[dict]:
     """
-    Parse the selection agent's JSON. Accepts both the preferred
-    ``{"selected_questions": [...]}`` shape and a bare JSON array.
+    Parse the selection agent's JSON (raw text or an already-parsed value).
+    Accepts both the preferred ``{"selected_questions": [...]}`` shape and a
+    bare JSON array.
     """
-    data = parse_json(raw)
+    data = parse_json(raw) if isinstance(raw, str) else raw
     if isinstance(data, dict):
         items = data.get("selected_questions")
         if items is None:

@@ -36,6 +36,8 @@ export default function InterviewScreen({
   const wantBlobRef     = useRef(false);
   const elAudioRef      = useRef(null);
   const transcriptRef   = useRef("");
+  const interimRef      = useRef("");
+  const finalizingRef   = useRef(false);
 
   const isAnswered  = !!currentAnswer;
   const questionId  = currentQuestion?.id;
@@ -44,11 +46,14 @@ export default function InterviewScreen({
 
   // ── Sequence control ──────────────────────────────────────
 
-  function stopSequence() {
+  function stopSequence({ keepTranscript = false } = {}) {
     wantBlobRef.current = false;
     seqRef.current += 1;
     setHasAudio(false);
-    transcriptRef.current = "";
+    if (!keepTranscript) {
+      transcriptRef.current = "";
+      interimRef.current = "";
+    }
     try { window.speechSynthesis?.cancel(); } catch (_) {}
     if (elAudioRef.current) {
       try { elAudioRef.current.pause(); elAudioRef.current.src = ""; } catch (_) {}
@@ -71,20 +76,29 @@ export default function InterviewScreen({
     audioBlobRef.current  = null;
     audioChunksRef.current = [];
     transcriptRef.current  = "";
+    interimRef.current     = "";
+    finalizingRef.current  = false;
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SR) {
       const rec = new SR();
       rec.continuous      = true;
-      rec.interimResults  = false;
+      rec.interimResults  = true;
       rec.lang            = "en-US";
       rec.onresult = (e) => {
-        if (seqRef.current !== seq) return;
+        // Keep accepting results while finalizing so the last utterance isn't
+        // dropped when the user presses Stop (seqRef is bumped by stopSequence).
+        if (seqRef.current !== seq && !finalizingRef.current) return;
+        let interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) transcriptRef.current += e.results[i][0].transcript + " ";
+          const chunk = e.results[i][0].transcript;
+          if (e.results[i].isFinal) transcriptRef.current += chunk + " ";
+          else interim += chunk;
         }
+        interimRef.current = interim;
       };
       rec.onerror = (e) => { if (e.error !== "aborted") console.warn("SR:", e.error); };
+      rec.onend = () => { finalizingRef.current = false; };
       recognitionRef.current = rec;
       rec.start();
     }
@@ -243,14 +257,15 @@ export default function InterviewScreen({
   };
 
   const handleStopRecording = () => {
-    stopSequence();
+    finalizingRef.current = true;
+    stopSequence({ keepTranscript: true });
     wantBlobRef.current = true;
     setTtsPhase("done");
   };
 
   const handleSubmit = () => {
     if (!hasAudio || loading) return;
-    const text = transcriptRef.current.trim() || "[voice response]";
+    const text = `${transcriptRef.current} ${interimRef.current}`.trim() || "[voice response]";
     onSubmit(text, replayCount);
   };
 
